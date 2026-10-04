@@ -25,7 +25,9 @@ local MIN_SPEED, MAX_SPEED = 1, 500
 local flying = false
 local espEnabled = false
 local menuKey = Enum.KeyCode.RightShift -- key that hides / shows the menu (rebindable)
-local listeningFor = nil -- "fly" or "menu" while waiting for a key press
+local aimKey = Enum.KeyCode.Q -- key that toggles / holds the aimbot (rebindable)
+local resetKey = Enum.KeyCode.X -- key that resets your character (rebindable)
+local listeningFor = nil -- "fly", "menu", "aim" or "reset" while waiting for a key press
 
 local esp = {
 	names = true,
@@ -1460,7 +1462,7 @@ end
 ------------------------------------------------------------
 local bodyVel, bodyGyro
 local curVel = Vector3.zero
-local flyToggle, speedSlider, keyButton, menuKeyButton
+local flyToggle, speedSlider, keyButton, menuKeyButton, aimKeyButton, resetKeyButton, aimToggle
 local freezeToggle, setFreeze
 
 local function getRoot()
@@ -1519,13 +1521,13 @@ speedSlider = makeSlider(flyPage, "Fly Speed", 2, MIN_SPEED, MAX_SPEED, flySpeed
 end)
 
 -- Keybind rows (click, then press any key)
-local function makeKeyRow(order, label, which)
+local function makeKeyRow(order, label, which, parent)
 	local row = new("Frame", {
 		Size = UDim2.new(1, 0, 0, 38),
 		BackgroundColor3 = C.row,
 		BorderSizePixel = 0,
 		LayoutOrder = order,
-	}, flyPage)
+	}, parent or flyPage)
 	corner(row, 10)
 	new("TextLabel", {
 		Size = UDim2.new(1, -120, 1, 0),
@@ -1543,7 +1545,7 @@ local function makeKeyRow(order, label, which)
 		Position = UDim2.new(1, -10, 0.5, 0),
 		BackgroundColor3 = C.panel,
 		BorderSizePixel = 0,
-		Text = (which == "fly" and flyKey or menuKey).Name,
+		Text = (which == "fly" and flyKey or which == "aim" and aimKey or which == "reset" and resetKey or menuKey).Name,
 		TextColor3 = C.text,
 		Font = Enum.Font.GothamBold,
 		TextSize = 13,
@@ -1554,6 +1556,8 @@ local function makeKeyRow(order, label, which)
 		-- clear any other button that was waiting for a key
 		if keyButton then keyButton.Text = flyKey.Name end
 		if menuKeyButton then menuKeyButton.Text = menuKey.Name end
+		if aimKeyButton then aimKeyButton.Text = aimKey.Name end
+		if resetKeyButton then resetKeyButton.Text = resetKey.Name end
 		listeningFor = which
 		btn.Text = "press a key..."
 	end)
@@ -2016,10 +2020,12 @@ local instantToggle = makeToggle(mePage, "Instant Prompts", 11, false, function(
 	if refreshMobile then refreshMobile() end
 end)
 
-makeButton(mePage, "Reset Character", 12, function()
+local function resetCharacter()
 	local _, hum = getRoot()
 	if hum then hum.Health = 0 end
-end)
+end
+makeButton(mePage, "Reset Character", 12, resetCharacter)
+resetKeyButton = makeKeyRow(13, "Reset Key", "reset", mePage)
 
 -- No Animations: disables the Animate script and stops every playing animation
 local noAnim = false
@@ -2031,7 +2037,7 @@ local function applyNoAnim(char)
 	end
 end
 
-makeToggle(mePage, "No Animations", 13, false, function(v)
+makeToggle(mePage, "No Animations", 14, false, function(v)
 	noAnim = v
 	applyNoAnim(player.Character)
 	notify("No Animations: " .. (v and "ON" or "OFF"))
@@ -2259,6 +2265,7 @@ local aim = {
 	wallCheck = true,
 	showFov = true,
 	holdRMB = not IS_TOUCH, -- PC: only aim while right mouse is held
+	holdKey = false,  -- true: aimbot is ON only while the aim key is held
 }
 local AIM_PARTS = { "Head", "UpperTorso", "HumanoidRootPart" }
 
@@ -2275,9 +2282,9 @@ local fovStroke = new("UIStroke", {
 	ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 }, fovCircle)
 
-makeToggle(aimPage, "Aimbot", 1, false, function(v)
+aimToggle = makeToggle(aimPage, "Aimbot", 1, false, function(v)
 	aim.enabled = v
-	notify("Aimbot: " .. (v and "ON" or "OFF"))
+	if not aim.holdKey then notify("Aimbot: " .. (v and "ON" or "OFF")) end
 end)
 makeSlider(aimPage, "Smoothness (1 = instant)", 2, 1, 50, aim.smooth, function(v)
 	aim.smooth = v
@@ -2290,6 +2297,18 @@ makeToggle(aimPage, "Show FOV Circle", 4, aim.showFov, function(v) aim.showFov =
 makeToggle(aimPage, "Hold Right Mouse", 5, aim.holdRMB, function(v) aim.holdRMB = v end)
 makeToggle(aimPage, "Wall Check", 6, aim.wallCheck, function(v) aim.wallCheck = v end)
 makeToggle(aimPage, "Team Check", 7, aim.teamCheck, function(v) aim.teamCheck = v end)
+aimKeyButton = makeKeyRow(9, "Aim Key", "aim", aimPage)
+makeToggle(aimPage, "Hold Key Mode", 10, aim.holdKey, function(v)
+	aim.holdKey = v
+	aimToggle.set(false) -- start clean when switching between toggle / hold
+	notify(v and ("Hold " .. aimKey.Name .. " to aim") or ("Press " .. aimKey.Name .. " to toggle aimbot"))
+end)
+-- hold mode: releasing the aim key turns the aimbot off again
+UserInputService.InputEnded:Connect(function(input)
+	if aim.holdKey and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == aimKey then
+		aimToggle.set(false)
+	end
+end)
 local partBtn
 partBtn = makeButton(aimPage, "Target: Head", 8, function()
 	aim.partIndex = aim.partIndex % #AIM_PARTS + 1
@@ -2550,13 +2569,23 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		local code = input.KeyCode
 		-- Escape cancels; the two actions can't share a key
 		if code ~= Enum.KeyCode.Escape and code ~= Enum.KeyCode.Unknown then
-			if which == "fly" and code == menuKey then
-				notify(code.Name .. " already hides the menu")
-			elseif which == "menu" and code == flyKey then
-				notify(code.Name .. " is already the fly key")
+			local keys = { fly = flyKey, menu = menuKey, aim = aimKey, reset = resetKey }
+			local labels = { fly = "the fly key", menu = "the hide menu key", aim = "the aim key", reset = "the reset key" }
+			local clash
+			for k, v in pairs(keys) do
+				if k ~= which and v == code then clash = k end
+			end
+			if clash then
+				notify(code.Name .. " is already " .. labels[clash])
 			elseif which == "fly" then
 				flyKey = code
 				notify("Fly key: " .. code.Name)
+			elseif which == "aim" then
+				aimKey = code
+				notify("Aim key: " .. code.Name)
+			elseif which == "reset" then
+				resetKey = code
+				notify("Reset key: " .. code.Name)
 			else
 				menuKey = code
 				updateFooter()
@@ -2565,6 +2594,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		end
 		keyButton.Text = flyKey.Name
 		menuKeyButton.Text = menuKey.Name
+		aimKeyButton.Text = aimKey.Name
+		resetKeyButton.Text = resetKey.Name
 		return
 	end
 
@@ -2574,6 +2605,14 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		toggleFly()
 	elseif input.KeyCode == menuKey then
 		setMenu(not menuOpen)
+	elseif input.KeyCode == resetKey then
+		resetCharacter()
+	elseif input.KeyCode == aimKey then
+		if aim.holdKey then
+			aimToggle.set(true)
+		else
+			aimToggle.set(not aimToggle.get())
+		end
 	end
 end)
 
