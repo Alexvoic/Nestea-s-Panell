@@ -602,7 +602,7 @@ do
 	local lineL, lineR = sideLine(true), sideLine(false)
 
 	-- Typewriter tagline
-	local TAG = "FLY  •  ESP  •  TOOLS  •  WORLD"
+	local TAG = "FLY  •  ESP  •  AIM  •  TOOLS  •  WORLD"
 	local tag = new("TextLabel", {
 		Size = UDim2.new(1, 0, 0, 18),
 		Position = UDim2.fromOffset(0, 258),
@@ -1071,7 +1071,7 @@ local subtitle = new("TextLabel", {
 	Size = UDim2.new(1, -90, 0, 16),
 	Position = UDim2.fromOffset(16, 34),
 	BackgroundTransparency = 1,
-	Text = "FLY  •  ESP  •  TOOLS",
+	Text = "FLY  •  ESP  •  AIM  •  TOOLS",
 	TextColor3 = C.dim,
 	Font = Enum.Font.GothamBold,
 	TextSize = 12,
@@ -1152,14 +1152,14 @@ end
 
 local function makeTab(name, label)
 	local b = new("TextButton", {
-		Size = UDim2.new(1 / 6, -4, 0, 26),
+		Size = UDim2.new(1 / 7, -4, 0, 26),
 		BackgroundColor3 = C.off,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Text = label,
 		TextColor3 = C.dim,
 		Font = Enum.Font.GothamBold,
-		TextSize = 10,
+		TextSize = 9,
 		AutoButtonColor = false,
 	}, tabBar)
 	corner(b, 8)
@@ -1169,12 +1169,14 @@ end
 
 makeTab("fly", "FLY")
 makeTab("esp", "ESP")
+makeTab("aim", "AIM")
 makeTab("me", "ME")
 makeTab("world", "WORLD")
 makeTab("tp", "TP")
 makeTab("mob", "MOB")
 local flyPage = makePage("fly")
 local espPage = makePage("esp")
+local aimPage = makePage("aim")
 local mePage = makePage("me")
 local worldPage = makePage("world")
 local tpPage = makePage("tp")
@@ -1322,6 +1324,7 @@ local function makeSlider(parent, text, order, min, max, default, callback)
 		Font = Enum.Font.GothamMedium,
 		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 	}, row)
 
 	local valueBox = new("TextBox", {
@@ -2018,6 +2021,39 @@ makeButton(mePage, "Reset Character", 12, function()
 	if hum then hum.Health = 0 end
 end)
 
+-- No Animations: disables the Animate script and stops every playing animation
+local noAnim = false
+local function applyNoAnim(char)
+	if not char then return end
+	local animate = char:FindFirstChild("Animate")
+	if animate and animate:IsA("LuaSourceContainer") then
+		animate.Disabled = noAnim
+	end
+end
+
+makeToggle(mePage, "No Animations", 13, false, function(v)
+	noAnim = v
+	applyNoAnim(player.Character)
+	notify("No Animations: " .. (v and "ON" or "OFF"))
+end)
+
+RunService.RenderStepped:Connect(function()
+	if not noAnim then return end
+	local _, hum = getRoot()
+	local animator = hum and hum:FindFirstChildOfClass("Animator")
+	if animator then
+		for _, tr in ipairs(animator:GetPlayingAnimationTracks()) do
+			tr:Stop(0)
+		end
+	end
+end)
+
+-- stays active after respawn
+player.CharacterAdded:Connect(function(char)
+	char:WaitForChild("Animate", 5)
+	if noAnim then applyNoAnim(char) end
+end)
+
 ------------------------------------------------------------
 -- WORLD tab
 ------------------------------------------------------------
@@ -2210,6 +2246,108 @@ end
 for _, plr in ipairs(Players:GetPlayers()) do addPlayerRow(plr) end
 Players.PlayerAdded:Connect(addPlayerRow)
 Players.PlayerRemoving:Connect(removePlayerRow)
+
+------------------------------------------------------------
+-- AIM tab (Aimbot + Smooth + FOV)
+------------------------------------------------------------
+local aim = {
+	enabled = false,
+	fov = 150,        -- circle radius in pixels
+	smooth = 5,       -- 1 = instant, higher = slower
+	partIndex = 1,
+	teamCheck = false,
+	wallCheck = true,
+	showFov = true,
+	holdRMB = not IS_TOUCH, -- PC: only aim while right mouse is held
+}
+local AIM_PARTS = { "Head", "UpperTorso", "HumanoidRootPart" }
+
+local fovCircle = new("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	BackgroundTransparency = 1,
+	Size = UDim2.fromOffset(aim.fov * 2, aim.fov * 2),
+	Visible = false,
+}, overlay)
+new("UICorner", { CornerRadius = UDim.new(0.5, 0) }, fovCircle)
+local fovStroke = new("UIStroke", {
+	Thickness = 1.5,
+	Color = WHITE,
+	ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+}, fovCircle)
+
+makeToggle(aimPage, "Aimbot", 1, false, function(v)
+	aim.enabled = v
+	notify("Aimbot: " .. (v and "ON" or "OFF"))
+end)
+makeSlider(aimPage, "Smoothness (1 = instant)", 2, 1, 50, aim.smooth, function(v)
+	aim.smooth = v
+end)
+makeSlider(aimPage, "FOV (radius)", 3, 20, 600, aim.fov, function(v)
+	aim.fov = v
+	fovCircle.Size = UDim2.fromOffset(v * 2, v * 2)
+end)
+makeToggle(aimPage, "Show FOV Circle", 4, aim.showFov, function(v) aim.showFov = v end)
+makeToggle(aimPage, "Hold Right Mouse", 5, aim.holdRMB, function(v) aim.holdRMB = v end)
+makeToggle(aimPage, "Wall Check", 6, aim.wallCheck, function(v) aim.wallCheck = v end)
+makeToggle(aimPage, "Team Check", 7, aim.teamCheck, function(v) aim.teamCheck = v end)
+local partBtn
+partBtn = makeButton(aimPage, "Target: Head", 8, function()
+	aim.partIndex = aim.partIndex % #AIM_PARTS + 1
+	partBtn.Text = "Target: " .. AIM_PARTS[aim.partIndex]
+end)
+
+local aimParams = RaycastParams.new()
+aimParams.FilterType = Enum.RaycastFilterType.Exclude
+
+local function getAimTarget(center)
+	local best, bestDist = nil, aim.fov
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= player then
+			local char = plr.Character
+			local hum = char and char:FindFirstChildOfClass("Humanoid")
+			local part = char and (char:FindFirstChild(AIM_PARTS[aim.partIndex])
+				or char:FindFirstChild("HumanoidRootPart"))
+			local sameTeam = plr.Team ~= nil and plr.Team == player.Team
+			if part and hum and hum.Health > 0 and not (aim.teamCheck and sameTeam) then
+				local pos, onScreen = camera:WorldToViewportPoint(part.Position)
+				if onScreen and pos.Z > 0 then
+					local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+					if d < bestDist then
+						local visible = true
+						if aim.wallCheck then
+							aimParams.FilterDescendantsInstances = { player.Character, char }
+							local origin = camera.CFrame.Position
+							visible = workspace:Raycast(origin, part.Position - origin, aimParams) == nil
+						end
+						if visible then best, bestDist = part, d end
+					end
+				end
+			end
+		end
+	end
+	return best
+end
+
+RunService:BindToRenderStep("NesteaAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
+	local vp = camera.ViewportSize
+	local center = IS_TOUCH and Vector2.new(vp.X / 2, vp.Y / 2) or UserInputService:GetMouseLocation()
+
+	fovCircle.Visible = aim.enabled and aim.showFov
+	fovCircle.Position = UDim2.fromOffset(center.X, center.Y)
+	fovStroke.Color = accentColor
+
+	if not aim.enabled then return end
+	if aim.holdRMB and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then return end
+
+	local target = getAimTarget(center)
+	if not target then return end
+
+	local camPos = camera.CFrame.Position
+	local goal = CFrame.lookAt(camPos, target.Position)
+	-- FPS-independent smoothing: smooth = 1 -> instant snap
+	local alpha = 1 - (1 - 1 / aim.smooth) ^ (dt * 60)
+	camera.CFrame = camera.CFrame:Lerp(goal, alpha)
+end)
 
 ------------------------------------------------------------
 -- Menu behavior: drag, minimize, close, hide key, rebinding
