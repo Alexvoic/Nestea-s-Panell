@@ -37,6 +37,7 @@ local esp = {
 	teamColors = false,
 	rainbow = true,
 	range = 2000,
+	skeleton = false,
 }
 
 -- mobile fly buttons (read by the fly loop)
@@ -1749,9 +1750,115 @@ makeToggle(espPage, "Tracers", 5, esp.tracers, function(v) esp.tracers = v end)
 makeToggle(espPage, "Team Colors", 6, esp.teamColors, function(v) esp.teamColors = v end)
 makeToggle(espPage, "Rainbow ESP", 7, esp.rainbow, function(v) esp.rainbow = v end)
 makeSlider(espPage, "Max Range", 8, 100, 5000, esp.range, function(v) esp.range = v end)
+makeToggle(espPage, "Skeleton", 9, esp.skeleton, function(v) esp.skeleton = v end)
 
 Players.PlayerAdded:Connect(function(plr) if espEnabled then addESP(plr) end end)
 Players.PlayerRemoving:Connect(clearESP)
+
+-- Skeleton ESP: draws the bones of every player as 2D lines (R15 and R6 rigs)
+do
+	local R15 = {
+		{ "Head", "UpperTorso" }, { "UpperTorso", "LowerTorso" },
+		{ "UpperTorso", "LeftUpperArm" }, { "LeftUpperArm", "LeftLowerArm" }, { "LeftLowerArm", "LeftHand" },
+		{ "UpperTorso", "RightUpperArm" }, { "RightUpperArm", "RightLowerArm" }, { "RightLowerArm", "RightHand" },
+		{ "LowerTorso", "LeftUpperLeg" }, { "LeftUpperLeg", "LeftLowerLeg" }, { "LeftLowerLeg", "LeftFoot" },
+		{ "LowerTorso", "RightUpperLeg" }, { "RightUpperLeg", "RightLowerLeg" }, { "RightLowerLeg", "RightFoot" },
+	}
+	local R6 = {
+		{ "Head", "Torso" }, { "Torso", "Left Arm" }, { "Torso", "Right Arm" },
+		{ "Torso", "Left Leg" }, { "Torso", "Right Leg" },
+	}
+	local pools = {} -- [Player] = { Frame, ... }
+	local active = false
+
+	local function getLine(plr, i)
+		local pool = pools[plr]
+		if not pool then
+			pool = {}
+			pools[plr] = pool
+		end
+		local l = pool[i]
+		if not l then
+			l = new("Frame", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				BackgroundColor3 = WHITE,
+				BorderSizePixel = 0,
+				Visible = false,
+			}, overlay)
+			pool[i] = l
+		end
+		return l
+	end
+
+	local function hidePool(plr, from)
+		local pool = pools[plr]
+		if not pool then return end
+		for i = from, #pool do pool[i].Visible = false end
+	end
+
+	Players.PlayerRemoving:Connect(function(plr)
+		local pool = pools[plr]
+		if pool then
+			for _, l in ipairs(pool) do l:Destroy() end
+			pools[plr] = nil
+		end
+	end)
+
+	RunService.RenderStepped:Connect(function()
+		if not (espEnabled and esp.skeleton) then
+			if active then
+				for plr in pairs(pools) do hidePool(plr, 1) end
+				active = false
+			end
+			return
+		end
+		active = true
+
+		local myRoot = getRoot()
+		local hue = (os.clock() * 0.12) % 1
+
+		for plr in pairs(espObjects) do
+			local char = plr.Character
+			local root = char and char:FindFirstChild("HumanoidRootPart")
+			local hum = char and char:FindFirstChildOfClass("Humanoid")
+			local dist = (root and myRoot) and (root.Position - myRoot.Position).Magnitude or math.huge
+
+			if not root or not hum or hum.Health <= 0 or dist > esp.range then
+				hidePool(plr, 1)
+			else
+				local color = Color3.fromRGB(255, 60, 60)
+				if esp.teamColors and plr.Team then
+					color = plr.TeamColor.Color
+				elseif esp.rainbow then
+					color = Color3.fromHSV((hue + dist / 400) % 1, 0.8, 1)
+				end
+
+				local bones = char:FindFirstChild("UpperTorso") and R15 or R6
+				for i, bone in ipairs(bones) do
+					local line = getLine(plr, i)
+					local a = char:FindFirstChild(bone[1])
+					local b = char:FindFirstChild(bone[2])
+					local shown = false
+					if a and b then
+						local pa = camera:WorldToViewportPoint(a.Position)
+						local pb = camera:WorldToViewportPoint(b.Position)
+						if pa.Z > 0 and pb.Z > 0 then
+							local A, B = Vector2.new(pa.X, pa.Y), Vector2.new(pb.X, pb.Y)
+							local d = B - A
+							line.Size = UDim2.fromOffset(d.Magnitude + 1, 1.5)
+							line.Position = UDim2.fromOffset((A.X + B.X) / 2, (A.Y + B.Y) / 2)
+							line.Rotation = math.deg(math.atan2(d.Y, d.X))
+							line.BackgroundColor3 = color
+							shown = true
+						end
+					end
+					line.Visible = shown
+				end
+				hidePool(plr, #bones + 1)
+			end
+		end
+	end)
+end
 
 ------------------------------------------------------------
 -- Per-frame updates (ESP info + rainbow accent + border spin)
@@ -2442,7 +2549,7 @@ end)
 -- Silent aim: never moves your camera. It only picks a target inside its own FOV
 -- and hands it to YOUR game's weapon scripts through NesteaSilentAim
 -- (a BindableFunction under the player, also available as _G.NesteaSilentAim).
-local silent = { enabled = false, fov = 100, showFov = true, target = nil }
+local silent = { enabled = false, fov = 100, showFov = true, debug = false, target = nil }
 do
 	silent.circle = new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -2468,6 +2575,42 @@ do
 		silent.circle.Size = UDim2.fromOffset(v * 2, v * 2)
 	end)
 	makeToggle(aimPage, "Show Silent FOV", 14, silent.showFov, function(v) silent.showFov = v end)
+
+	-- Test mode: shows which player Silent Aim has locked and draws a beam to them when you click.
+	-- This is client-side only (nobody else sees it, no damage) - it just proves the target works.
+	silent.marker = new("Highlight", {
+		FillColor = Color3.fromRGB(255, 60, 60),
+		OutlineColor = WHITE,
+		FillTransparency = 0.6,
+		DepthMode = Enum.HighlightDepthMode.AlwaysOnTop,
+		Enabled = false,
+	}, workspace)
+	makeToggle(aimPage, "Silent Test (marker + beam)", 15, false, function(v)
+		silent.debug = v
+		notify("Silent Test: " .. (v and "ON" or "OFF"))
+	end)
+	local Debris = game:GetService("Debris")
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed or not silent.debug or not silent.enabled then return end
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch then return end
+		local t = silent.target
+		local char = player.Character
+		local head = char and char:FindFirstChild("Head")
+		if not (t and t.Parent and head) then return end
+		local a, b = head.Position, t.Position
+		local beam = Instance.new("Part")
+		beam.Anchored = true
+		beam.CanCollide = false
+		beam.CanQuery = false
+		beam.CanTouch = false
+		beam.Material = Enum.Material.Neon
+		beam.Color = Color3.fromRGB(255, 60, 60)
+		beam.Size = Vector3.new(0.2, 0.2, (b - a).Magnitude)
+		beam.CFrame = CFrame.lookAt((a + b) / 2, b)
+		beam.Parent = workspace
+		Debris:AddItem(beam, 0.15)
+	end)
 
 	local function result()
 		local t = silent.target
@@ -2525,6 +2668,9 @@ RunService:BindToRenderStep("NesteaAim", Enum.RenderPriority.Camera.Value + 1, f
 	silent.circle.Visible = silent.enabled and silent.showFov
 	silent.circle.Position = UDim2.fromOffset(center.X, center.Y)
 	silent.target = silent.enabled and getAimTarget(center, silent.fov) or nil
+	local showMark = silent.debug and silent.target ~= nil
+	silent.marker.Enabled = showMark
+	silent.marker.Adornee = showMark and silent.target.Parent or nil
 
 	if not aim.enabled then return end
 	if aim.holdRMB and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then return end
