@@ -9,7 +9,6 @@ local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 local TeleportService = game:GetService("TeleportService")
 local VirtualUser = game:GetService("VirtualUser")
-local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -29,7 +28,6 @@ local menuKey = Enum.KeyCode.RightShift -- key that hides / shows the menu (rebi
 local aimKey = Enum.KeyCode.Q -- key that toggles / holds the aimbot (rebindable)
 local resetKey = Enum.KeyCode.X -- key that resets your character (rebindable)
 local listeningFor = nil -- "fly", "menu", "aim" or "reset" while waiting for a key press
-local loadingSettings = false -- true while settings are being applied (silences toasts)
 
 local esp = {
 	names = true,
@@ -39,7 +37,6 @@ local esp = {
 	teamColors = false,
 	rainbow = true,
 	range = 2000,
-	tracerOrigin = "Center", -- Center / Bottom / Mouse
 }
 
 -- mobile fly buttons (read by the fly loop)
@@ -71,24 +68,20 @@ local BRAND = ColorSequence.new({
 local accentSet = {} -- [instance] = "PropertyName" (recolored every frame with the rainbow accent)
 local accentColor = Color3.fromHSV(0.55, 0.7, 1)
 
-local currentTheme = { name = "Rainbow", accent = nil } -- replaced by applyTheme (SET tab)
-local widgets = {} -- ["page/Label"] = toggle / slider object (used by Save Settings)
-
--- Every instance created with one of the C.* colors is remembered here,
--- so changing the theme can recolor the whole GUI.
-local THEME_PROPS = { "BackgroundColor3", "TextColor3", "Color", "ScrollBarImageColor3" }
+local currentTheme = { name = "Rainbow" } -- replaced when you pick a theme (WORLD tab)
 local themed = setmetatable({}, { __mode = "k" }) -- [instance] = { {prop, colorKey}, ... }
 
 local function new(class, props, parent)
 	local i = Instance.new(class)
-	for k, v in pairs(props) do i[k] = v end
-	for _, pn in ipairs(THEME_PROPS) do
-		local v = props[pn]
-		if typeof(v) == "Color3" then
+	for k, v in pairs(props) do
+		i[k] = v
+		-- remember GUI colors that come from the C table so a theme can recolor them
+		if (k == "BackgroundColor3" or k == "TextColor3" or k == "Color" or k == "ScrollBarImageColor3")
+			and typeof(v) == "Color3" then
 			for key, col in pairs(C) do
 				if col == v then
 					themed[i] = themed[i] or {}
-					table.insert(themed[i], { pn, key })
+					table.insert(themed[i], { k, key })
 					break
 				end
 			end
@@ -1069,7 +1062,7 @@ local stroke = new("UIStroke", {
 local strokeGrad = new("UIGradient", { Color = BRAND }, stroke)
 
 -- Subtle background gradient
-local frameBgGrad = new("UIGradient", {
+new("UIGradient", {
 	Rotation = 90,
 	Color = ColorSequence.new(Color3.fromRGB(24, 20, 38), Color3.fromRGB(10, 10, 16)),
 }, frame)
@@ -1146,11 +1139,9 @@ new("UIListLayout", {
 }, tabBar)
 
 local pages, tabButtons = {}, {}
-local currentTab
 
 local function makePage(name)
 	local p = new("ScrollingFrame", {
-		Name = name,
 		Size = UDim2.new(1, -24, 1, -78),
 		Position = UDim2.fromOffset(12, 44),
 		BackgroundTransparency = 1,
@@ -1167,7 +1158,6 @@ local function makePage(name)
 end
 
 local function selectTab(name)
-	currentTab = name
 	for n, p in pairs(pages) do p.Visible = (n == name) end
 	for n, b in pairs(tabButtons) do
 		local active = n == name
@@ -1180,7 +1170,7 @@ end
 
 local function makeTab(name, label)
 	local b = new("TextButton", {
-		Size = UDim2.new(1 / 8, -4, 0, 26),
+		Size = UDim2.new(1 / 7, -4, 0, 26),
 		BackgroundColor3 = C.off,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
@@ -1188,10 +1178,8 @@ local function makeTab(name, label)
 		TextColor3 = C.dim,
 		Font = Enum.Font.GothamBold,
 		TextSize = 9,
-		TextScaled = true,
 		AutoButtonColor = false,
 	}, tabBar)
-	new("UITextSizeConstraint", { MaxTextSize = 9, MinTextSize = 5 }, b)
 	corner(b, 8)
 	b.MouseButton1Click:Connect(function() selectTab(name) end)
 	tabButtons[name] = b
@@ -1204,7 +1192,6 @@ makeTab("me", "ME")
 makeTab("world", "WORLD")
 makeTab("tp", "TP")
 makeTab("mob", "MOB")
-makeTab("set", "SET")
 local flyPage = makePage("fly")
 local espPage = makePage("esp")
 local aimPage = makePage("aim")
@@ -1212,7 +1199,6 @@ local mePage = makePage("me")
 local worldPage = makePage("world")
 local tpPage = makePage("tp")
 local mobPage = makePage("mob")
-local setPage = makePage("set")
 selectTab("fly")
 
 -- Footer hint
@@ -1253,7 +1239,6 @@ accentSet[toastStroke] = "Color"
 local toastToken = 0
 
 local function notify(text)
-	if loadingSettings then return end
 	toastToken += 1
 	local t = toastToken
 	toast.Text = text
@@ -1336,7 +1321,6 @@ local function makeToggle(parent, text, order, default, callback)
 
 	btn.MouseButton1Click:Connect(function() obj.set(not state) end)
 	render()
-	if parent.Name ~= "" then widgets[parent.Name .. "/" .. text] = obj end
 	return obj
 end
 
@@ -1451,7 +1435,6 @@ local function makeSlider(parent, text, order, min, max, default, callback)
 	valueBox.FocusLost:Connect(function() obj.set(valueBox.Text) end)
 
 	visual()
-	if parent.Name ~= "" then widgets[parent.Name .. "/" .. text] = obj end
 	return obj
 end
 
@@ -1767,17 +1750,6 @@ makeToggle(espPage, "Team Colors", 6, esp.teamColors, function(v) esp.teamColors
 makeToggle(espPage, "Rainbow ESP", 7, esp.rainbow, function(v) esp.rainbow = v end)
 makeSlider(espPage, "Max Range", 8, 100, 5000, esp.range, function(v) esp.range = v end)
 
-local TRACER_ORIGINS = { "Center", "Bottom", "Mouse" }
-local tracerBtn
-local function setTracerOrigin(name)
-	esp.tracerOrigin = name
-	if tracerBtn then tracerBtn.Text = "Tracer Origin: " .. name end
-end
-tracerBtn = makeButton(espPage, "Tracer Origin: Center", 9, function()
-	local idx = table.find(TRACER_ORIGINS, esp.tracerOrigin) or 1
-	setTracerOrigin(TRACER_ORIGINS[idx % #TRACER_ORIGINS + 1])
-end)
-
 Players.PlayerAdded:Connect(function(plr) if espEnabled then addESP(plr) end end)
 Players.PlayerRemoving:Connect(clearESP)
 
@@ -1800,14 +1772,7 @@ RunService.Heartbeat:Connect(function(dt)
 	if not myRoot then return end
 
 	local vp = camera.ViewportSize
-	local origin
-	if esp.tracerOrigin == "Bottom" then
-		origin = Vector2.new(vp.X / 2, vp.Y)
-	elseif esp.tracerOrigin == "Mouse" then
-		origin = UserInputService:GetMouseLocation()
-	else
-		origin = Vector2.new(vp.X / 2, vp.Y / 2) -- middle of the screen
-	end
+	local origin = Vector2.new(vp.X / 2, vp.Y / 2) -- middle of the screen
 
 	for plr, d in pairs(espObjects) do
 		local char = plr.Character
@@ -2197,163 +2162,112 @@ makeButton(worldPage, "Rejoin Server", 7, function()
 end)
 
 ------------------------------------------------------------
--- WORLD tab extras: Unlock Camera + Crosshair
+-- WORLD tab extras: GUI theme + Unlock Camera (infinite zoom)
 ------------------------------------------------------------
-makeHeading(worldPage, "CAMERA & CROSSHAIR", 8)
-
-local camUnlock = false
-local origZoom = {
-	max = player.CameraMaxZoomDistance,
-	min = player.CameraMinZoomDistance,
-	mode = player.CameraMode,
-}
-makeToggle(worldPage, "Unlock Camera (Inf. Zoom)", 9, false, function(v)
-	camUnlock = v
-	if v then
-		player.CameraMode = Enum.CameraMode.Classic
-		player.CameraMinZoomDistance = 0
-		player.CameraMaxZoomDistance = 1e6
-	else
-		player.CameraMaxZoomDistance = origZoom.max
-		player.CameraMinZoomDistance = origZoom.min
-		player.CameraMode = origZoom.mode
+do
+	local function rgb(r, g, b) return Color3.fromRGB(r, g, b) end
+	local function brand3(a, b, c)
+		return ColorSequence.new({
+			ColorSequenceKeypoint.new(0.00, a),
+			ColorSequenceKeypoint.new(0.33, b),
+			ColorSequenceKeypoint.new(0.66, c),
+			ColorSequenceKeypoint.new(1.00, a),
+		})
 	end
-	notify("Unlock Camera: " .. (v and "ON" or "OFF"))
-end)
--- keep it unlocked even if the game tries to put the limits back
-RunService.RenderStepped:Connect(function()
-	if not camUnlock then return end
-	if player.CameraMaxZoomDistance < 1e6 then player.CameraMaxZoomDistance = 1e6 end
-	if player.CameraMinZoomDistance > 0 then player.CameraMinZoomDistance = 0 end
-end)
 
--- Crosshair
-local XH_STYLES = { "Cross", "Plus", "Dot", "Circle", "Cross + Dot", "X" }
-local XH_COLORS = {
-	{ "White", WHITE },
-	{ "Red", Color3.fromRGB(255, 60, 60) },
-	{ "Green", Color3.fromRGB(70, 255, 110) },
-	{ "Cyan", Color3.fromRGB(0, 230, 255) },
-	{ "Pink", Color3.fromRGB(255, 80, 190) },
-	{ "Yellow", Color3.fromRGB(255, 230, 60) },
-	{ "Theme" }, -- follows the GUI accent color
-}
-local xh = { enabled = false, style = 1, size = 10, thick = 2, gap = 4, color = 1 }
+	local THEMES = {
+		{ name = "Rainbow", bg = rgb(14, 14, 20), panel = rgb(22, 22, 32), row = rgb(30, 30, 44), off = rgb(58, 58, 78),
+			text = rgb(240, 240, 255), dim = rgb(150, 150, 175), accent = nil, brand = BRAND,
+			gradTop = rgb(24, 20, 38), gradBot = rgb(10, 10, 16) },
+		{ name = "Ocean", bg = rgb(8, 18, 30), panel = rgb(13, 28, 44), row = rgb(19, 40, 60), off = rgb(40, 72, 100),
+			text = rgb(225, 243, 255), dim = rgb(125, 165, 195), accent = rgb(70, 190, 255),
+			brand = brand3(rgb(0, 200, 255), rgb(40, 120, 255), rgb(0, 230, 200)),
+			gradTop = rgb(10, 30, 50), gradBot = rgb(5, 12, 22) },
+		{ name = "Crimson", bg = rgb(20, 9, 11), panel = rgb(32, 14, 17), row = rgb(46, 19, 23), off = rgb(90, 40, 46),
+			text = rgb(255, 235, 235), dim = rgb(190, 140, 145), accent = rgb(255, 70, 80),
+			brand = brand3(rgb(255, 40, 60), rgb(255, 120, 40), rgb(200, 20, 90)),
+			gradTop = rgb(44, 14, 18), gradBot = rgb(16, 6, 8) },
+		{ name = "Toxic", bg = rgb(9, 18, 10), panel = rgb(14, 30, 16), row = rgb(20, 42, 23), off = rgb(46, 88, 50),
+			text = rgb(232, 255, 235), dim = rgb(135, 185, 140), accent = rgb(90, 255, 120),
+			brand = brand3(rgb(80, 255, 120), rgb(190, 255, 60), rgb(40, 200, 150)),
+			gradTop = rgb(14, 40, 18), gradBot = rgb(6, 14, 8) },
+		{ name = "Violet", bg = rgb(16, 10, 26), panel = rgb(26, 16, 42), row = rgb(37, 23, 60), off = rgb(72, 52, 110),
+			text = rgb(245, 235, 255), dim = rgb(170, 150, 205), accent = rgb(190, 110, 255),
+			brand = brand3(rgb(190, 90, 255), rgb(255, 80, 200), rgb(110, 90, 255)),
+			gradTop = rgb(32, 18, 52), gradBot = rgb(12, 7, 20) },
+		{ name = "Sunset", bg = rgb(22, 12, 10), panel = rgb(36, 20, 16), row = rgb(52, 28, 22), off = rgb(100, 60, 46),
+			text = rgb(255, 242, 230), dim = rgb(200, 160, 140), accent = rgb(255, 150, 70),
+			brand = brand3(rgb(255, 160, 40), rgb(255, 80, 120), rgb(255, 210, 80)),
+			gradTop = rgb(48, 22, 14), gradBot = rgb(18, 8, 8) },
+		{ name = "Mono", bg = rgb(14, 14, 14), panel = rgb(24, 24, 24), row = rgb(34, 34, 34), off = rgb(70, 70, 70),
+			text = rgb(245, 245, 245), dim = rgb(155, 155, 155), accent = rgb(235, 235, 235),
+			brand = brand3(rgb(255, 255, 255), rgb(150, 150, 150), rgb(220, 220, 220)),
+			gradTop = rgb(28, 28, 28), gradBot = rgb(10, 10, 10) },
+	}
+	local idx = 1
+	local themeBtn
 
-local xhRoot = new("Frame", {
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0.5, 0.5),
-	Size = UDim2.fromOffset(0, 0),
-	BackgroundTransparency = 1,
-	Visible = false,
-}, overlay)
-local xhParts = {} -- { inst, prop }
+	local function applyTheme(i)
+		local T = THEMES[i]
+		idx = i
+		currentTheme = T
+		for _, k in ipairs({ "bg", "panel", "row", "off", "text", "dim" }) do
+			C[k] = T[k]
+		end
+		for inst, list in pairs(themed) do
+			if inst.Parent then
+				for _, e in ipairs(list) do
+					inst[e[1]] = C[e[2]]
+				end
+			end
+		end
+		strokeGrad.Color = T.brand
+		titleGrad.Color = T.brand
+		local g = frame:FindFirstChildOfClass("UIGradient")
+		if g then g.Color = ColorSequence.new(T.gradTop, T.gradBot) end
+		-- re-select the open tab so its highlight uses the new colors
+		for n, b in pairs(tabButtons) do
+			if b.BackgroundTransparency < 0.5 then
+				selectTab(n)
+				break
+			end
+		end
+		themeBtn.Text = "GUI Theme: " .. T.name
+	end
 
-local function xhBar(w, h, x, y, rot)
-	local f = new("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromOffset(x, y),
-		Size = UDim2.fromOffset(w, h),
-		BackgroundColor3 = WHITE,
-		BorderSizePixel = 0,
-		Rotation = rot or 0,
-	}, xhRoot)
-	new("UIStroke", {
-		Thickness = 1,
-		Color = Color3.new(0, 0, 0),
-		Transparency = 0.35,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-	}, f)
-	xhParts[#xhParts + 1] = { inst = f, prop = "BackgroundColor3" }
+	makeHeading(worldPage, "GUI & CAMERA", 8)
+	themeBtn = makeButton(worldPage, "GUI Theme: Rainbow", 9, function()
+		applyTheme(idx % #THEMES + 1)
+		notify("Theme: " .. THEMES[idx].name)
+	end)
+
+	-- Unlock Camera: infinite zoom (also lets you zoom all the way into first person)
+	local unlocked = false
+	local orig = {
+		max = player.CameraMaxZoomDistance,
+		min = player.CameraMinZoomDistance,
+		mode = player.CameraMode,
+	}
+	makeToggle(worldPage, "Unlock Camera (Inf. Zoom)", 10, false, function(v)
+		unlocked = v
+		if v then
+			player.CameraMode = Enum.CameraMode.Classic
+			player.CameraMinZoomDistance = 0
+			player.CameraMaxZoomDistance = 1e6
+		else
+			player.CameraMaxZoomDistance = orig.max
+			player.CameraMinZoomDistance = orig.min
+			player.CameraMode = orig.mode
+		end
+		notify("Unlock Camera: " .. (v and "ON" or "OFF"))
+	end)
+	-- keep it unlocked even if the game tries to put the limits back
+	RunService.RenderStepped:Connect(function()
+		if not unlocked then return end
+		if player.CameraMaxZoomDistance < 1e6 then player.CameraMaxZoomDistance = 1e6 end
+		if player.CameraMinZoomDistance > 0 then player.CameraMinZoomDistance = 0 end
+	end)
 end
-
-local function rebuildCrosshair()
-	for _, p in ipairs(xhParts) do p.inst:Destroy() end
-	table.clear(xhParts)
-	xhRoot.Visible = xh.enabled
-	local s, t, g = xh.size, xh.thick, xh.gap
-	local style = XH_STYLES[xh.style]
-
-	if style == "Cross" or style == "Cross + Dot" then
-		local off = g + s / 2
-		xhBar(s, t, -off, 0)
-		xhBar(s, t, off, 0)
-		xhBar(t, s, 0, -off)
-		xhBar(t, s, 0, off)
-	end
-	if style == "Plus" then
-		local len = 2 * (g + s)
-		xhBar(len, t, 0, 0)
-		xhBar(t, len, 0, 0)
-	end
-	if style == "Dot" or style == "Cross + Dot" then
-		local d = math.max(t + 1, 3)
-		xhBar(d, d, 0, 0)
-	end
-	if style == "Circle" then
-		local d = 2 * (g + s)
-		local c = new("Frame", {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromOffset(0, 0),
-			Size = UDim2.fromOffset(d, d),
-			BackgroundTransparency = 1,
-		}, xhRoot)
-		new("UICorner", { CornerRadius = UDim.new(0.5, 0) }, c)
-		local st = new("UIStroke", {
-			Thickness = t,
-			Color = WHITE,
-			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		}, c)
-		xhParts[#xhParts + 1] = { inst = st, prop = "Color" }
-		xhParts[#xhParts + 1] = { inst = c, prop = "Name" } -- keeps the frame in the cleanup list
-	end
-	if style == "X" then
-		local len = (g + s) * 1.6
-		xhBar(len, t, 0, 0, 45)
-		xhBar(len, t, 0, 0, -45)
-	end
-end
-
-RunService.RenderStepped:Connect(function()
-	if not xh.enabled then return end
-	local c = XH_COLORS[xh.color][2] or accentColor
-	for _, p in ipairs(xhParts) do
-		if p.prop ~= "Name" then p.inst[p.prop] = c end
-	end
-end)
-
-local xhStyleBtn, xhColorBtn
-local function refreshCrosshairButtons()
-	xhStyleBtn.Text = "Crosshair Style: " .. XH_STYLES[xh.style]
-	xhColorBtn.Text = "Crosshair Color: " .. XH_COLORS[xh.color][1]
-end
-
-makeToggle(worldPage, "Crosshair", 10, false, function(v)
-	xh.enabled = v
-	rebuildCrosshair()
-end)
-xhStyleBtn = makeButton(worldPage, "Crosshair Style: Cross", 11, function()
-	xh.style = xh.style % #XH_STYLES + 1
-	refreshCrosshairButtons()
-	rebuildCrosshair()
-end)
-xhColorBtn = makeButton(worldPage, "Crosshair Color: White", 12, function()
-	xh.color = xh.color % #XH_COLORS + 1
-	refreshCrosshairButtons()
-end)
-makeSlider(worldPage, "Crosshair Size", 13, 2, 60, xh.size, function(v)
-	xh.size = v
-	rebuildCrosshair()
-end)
-makeSlider(worldPage, "Crosshair Thickness", 14, 1, 10, xh.thick, function(v)
-	xh.thick = v
-	rebuildCrosshair()
-end)
-makeSlider(worldPage, "Crosshair Gap", 15, 0, 40, xh.gap, function(v)
-	xh.gap = v
-	rebuildCrosshair()
-end)
-rebuildCrosshair()
 
 ------------------------------------------------------------
 -- TP tab
@@ -2526,45 +2440,46 @@ partBtn = makeButton(aimPage, "Target: Head", 8, function()
 end)
 
 -- Silent aim: never moves your camera. It only picks a target inside its own FOV
--- and hands it to YOUR game's weapon scripts through the NesteaSilentAim function
--- (a BindableFunction parented to the player, also available as _G.NesteaSilentAim).
+-- and hands it to YOUR game's weapon scripts through NesteaSilentAim
+-- (a BindableFunction under the player, also available as _G.NesteaSilentAim).
 local silent = { enabled = false, fov = 100, showFov = true, target = nil }
+do
+	silent.circle = new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(silent.fov * 2, silent.fov * 2),
+		Visible = false,
+	}, overlay)
+	new("UICorner", { CornerRadius = UDim.new(0.5, 0) }, silent.circle)
+	new("UIStroke", {
+		Thickness = 1.5,
+		Color = Color3.fromRGB(255, 80, 80),
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	}, silent.circle)
 
-local silentCircle = new("Frame", {
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	BackgroundTransparency = 1,
-	Size = UDim2.fromOffset(silent.fov * 2, silent.fov * 2),
-	Visible = false,
-}, overlay)
-new("UICorner", { CornerRadius = UDim.new(0.5, 0) }, silentCircle)
-new("UIStroke", {
-	Thickness = 1.5,
-	Color = Color3.fromRGB(255, 80, 80),
-	ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-}, silentCircle)
+	makeHeading(aimPage, "SILENT AIM", 11)
+	makeToggle(aimPage, "Silent Aim", 12, false, function(v)
+		silent.enabled = v
+		if not v then silent.target = nil end
+		notify("Silent Aim: " .. (v and "ON" or "OFF"))
+	end)
+	makeSlider(aimPage, "Silent FOV (radius)", 13, 20, 600, silent.fov, function(v)
+		silent.fov = v
+		silent.circle.Size = UDim2.fromOffset(v * 2, v * 2)
+	end)
+	makeToggle(aimPage, "Show Silent FOV", 14, silent.showFov, function(v) silent.showFov = v end)
 
-makeHeading(aimPage, "SILENT AIM", 11)
-makeToggle(aimPage, "Silent Aim", 12, false, function(v)
-	silent.enabled = v
-	if not v then silent.target = nil end
-	notify("Silent Aim: " .. (v and "ON" or "OFF"))
-end)
-makeSlider(aimPage, "Silent FOV (radius)", 13, 20, 600, silent.fov, function(v)
-	silent.fov = v
-	silentCircle.Size = UDim2.fromOffset(v * 2, v * 2)
-end)
-makeToggle(aimPage, "Show Silent FOV", 14, silent.showFov, function(v) silent.showFov = v end)
-
-local function silentResult()
-	local t = silent.target
-	if silent.enabled and t and t.Parent then
-		return t.Position, t
+	local function result()
+		local t = silent.target
+		if silent.enabled and t and t.Parent then
+			return t.Position, t
+		end
+		return nil
 	end
-	return nil
+	local fn = new("BindableFunction", { Name = "NesteaSilentAim" }, player)
+	fn.OnInvoke = result
+	_G.NesteaSilentAim = result
 end
-local silentFn = new("BindableFunction", { Name = "NesteaSilentAim" }, player)
-silentFn.OnInvoke = silentResult
-_G.NesteaSilentAim = silentResult
 
 local aimParams = RaycastParams.new()
 aimParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -2607,8 +2522,8 @@ RunService:BindToRenderStep("NesteaAim", Enum.RenderPriority.Camera.Value + 1, f
 	fovStroke.Color = accentColor
 
 	-- silent aim only computes a target (camera untouched)
-	silentCircle.Visible = silent.enabled and silent.showFov
-	silentCircle.Position = UDim2.fromOffset(center.X, center.Y)
+	silent.circle.Visible = silent.enabled and silent.showFov
+	silent.circle.Position = UDim2.fromOffset(center.X, center.Y)
 	silent.target = silent.enabled and getAimTarget(center, silent.fov) or nil
 
 	if not aim.enabled then return end
@@ -2623,252 +2538,6 @@ RunService:BindToRenderStep("NesteaAim", Enum.RenderPriority.Camera.Value + 1, f
 	local alpha = 1 - (1 - 1 / aim.smooth) ^ (dt * 60)
 	camera.CFrame = camera.CFrame:Lerp(goal, alpha)
 end)
-
-------------------------------------------------------------
--- SET tab: GUI themes + save / load settings
-------------------------------------------------------------
-local function rgb(r, g, b) return Color3.fromRGB(r, g, b) end
-local function brand3(a, b, c)
-	return ColorSequence.new({
-		ColorSequenceKeypoint.new(0.00, a),
-		ColorSequenceKeypoint.new(0.33, b),
-		ColorSequenceKeypoint.new(0.66, c),
-		ColorSequenceKeypoint.new(1.00, a),
-	})
-end
-
-local THEMES = {
-	{ name = "Rainbow", bg = rgb(14, 14, 20), panel = rgb(22, 22, 32), row = rgb(30, 30, 44), off = rgb(58, 58, 78),
-		text = rgb(240, 240, 255), dim = rgb(150, 150, 175), accent = nil, brand = BRAND,
-		gradTop = rgb(24, 20, 38), gradBot = rgb(10, 10, 16) },
-	{ name = "Ocean", bg = rgb(8, 18, 30), panel = rgb(13, 28, 44), row = rgb(19, 40, 60), off = rgb(40, 72, 100),
-		text = rgb(225, 243, 255), dim = rgb(125, 165, 195), accent = rgb(70, 190, 255),
-		brand = brand3(rgb(0, 200, 255), rgb(40, 120, 255), rgb(0, 230, 200)),
-		gradTop = rgb(10, 30, 50), gradBot = rgb(5, 12, 22) },
-	{ name = "Crimson", bg = rgb(20, 9, 11), panel = rgb(32, 14, 17), row = rgb(46, 19, 23), off = rgb(90, 40, 46),
-		text = rgb(255, 235, 235), dim = rgb(190, 140, 145), accent = rgb(255, 70, 80),
-		brand = brand3(rgb(255, 40, 60), rgb(255, 120, 40), rgb(200, 20, 90)),
-		gradTop = rgb(44, 14, 18), gradBot = rgb(16, 6, 8) },
-	{ name = "Toxic", bg = rgb(9, 18, 10), panel = rgb(14, 30, 16), row = rgb(20, 42, 23), off = rgb(46, 88, 50),
-		text = rgb(232, 255, 235), dim = rgb(135, 185, 140), accent = rgb(90, 255, 120),
-		brand = brand3(rgb(80, 255, 120), rgb(190, 255, 60), rgb(40, 200, 150)),
-		gradTop = rgb(14, 40, 18), gradBot = rgb(6, 14, 8) },
-	{ name = "Violet", bg = rgb(16, 10, 26), panel = rgb(26, 16, 42), row = rgb(37, 23, 60), off = rgb(72, 52, 110),
-		text = rgb(245, 235, 255), dim = rgb(170, 150, 205), accent = rgb(190, 110, 255),
-		brand = brand3(rgb(190, 90, 255), rgb(255, 80, 200), rgb(110, 90, 255)),
-		gradTop = rgb(32, 18, 52), gradBot = rgb(12, 7, 20) },
-	{ name = "Sunset", bg = rgb(22, 12, 10), panel = rgb(36, 20, 16), row = rgb(52, 28, 22), off = rgb(100, 60, 46),
-		text = rgb(255, 242, 230), dim = rgb(200, 160, 140), accent = rgb(255, 150, 70),
-		brand = brand3(rgb(255, 160, 40), rgb(255, 80, 120), rgb(255, 210, 80)),
-		gradTop = rgb(48, 22, 14), gradBot = rgb(18, 8, 8) },
-	{ name = "Mono", bg = rgb(14, 14, 14), panel = rgb(24, 24, 24), row = rgb(34, 34, 34), off = rgb(70, 70, 70),
-		text = rgb(245, 245, 245), dim = rgb(155, 155, 155), accent = rgb(235, 235, 235),
-		brand = brand3(rgb(255, 255, 255), rgb(150, 150, 150), rgb(220, 220, 220)),
-		gradTop = rgb(28, 28, 28), gradBot = rgb(10, 10, 10) },
-}
-local currentThemeIndex = 1
-local themeBtn
-
-local function applyTheme(idx)
-	local T = THEMES[idx]
-	if not T then return end
-	currentThemeIndex = idx
-	currentTheme = T
-	for _, k in ipairs({ "bg", "panel", "row", "off", "text", "dim" }) do
-		C[k] = T[k]
-	end
-	for inst, list in pairs(themed) do
-		if inst.Parent then
-			for _, e in ipairs(list) do
-				inst[e[1]] = C[e[2]]
-			end
-		end
-	end
-	strokeGrad.Color = T.brand
-	titleGrad.Color = T.brand
-	frameBgGrad.Color = ColorSequence.new(T.gradTop, T.gradBot)
-	if currentTab then selectTab(currentTab) end
-	if themeBtn then themeBtn.Text = "Theme: " .. T.name end
-end
-
--- Save / load. Everything that is a toggle or slider registers itself in `widgets`,
--- so new options are saved automatically.
-local SAVE_SKIP = { -- never restored on load (they would start flying / freeze you)
-	["fly/Fly"] = true,
-	["me/Freeze Character"] = true,
-	["aim/Aimbot"] = true,
-}
-local SAVE_IF = { -- only saved if you actually changed them
-	["world/Time of Day"] = function() return timeTouched end,
-	["world/Gravity"] = function() return gravTouched end,
-	["world/Field of View"] = function() return fovTouched end,
-}
-
-local function collectSettings()
-	local data = {
-		v = 1,
-		w = {},
-		keys = { fly = flyKey.Name, menu = menuKey.Name, aim = aimKey.Name, reset = resetKey.Name },
-		theme = currentTheme.name,
-		aimPart = aim.partIndex,
-		tracerOrigin = esp.tracerOrigin,
-		xh = { style = xh.style, color = xh.color },
-	}
-	for id, obj in pairs(widgets) do
-		local cond = SAVE_IF[id]
-		if not SAVE_SKIP[id] and (not cond or cond()) then
-			data.w[id] = obj.get()
-		end
-	end
-	return data
-end
-
-local function toKey(name, fallback)
-	local ok, k = pcall(function() return Enum.KeyCode[name] end)
-	if ok and k then return k end
-	return fallback
-end
-
-local function refreshKeyButtons()
-	keyButton.Text = flyKey.Name
-	menuKeyButton.Text = menuKey.Name
-	aimKeyButton.Text = aimKey.Name
-	resetKeyButton.Text = resetKey.Name
-	updateFooter()
-end
-
-local function applySettings(data)
-	loadingSettings = true
-	local ok, err = pcall(function()
-		if type(data.w) == "table" then
-			for id, val in pairs(data.w) do
-				local o = widgets[id]
-				if o and not SAVE_SKIP[id] and type(val) == type(o.default) then
-					o.set(val)
-				end
-			end
-		end
-		if type(data.keys) == "table" then
-			flyKey = toKey(data.keys.fly, flyKey)
-			menuKey = toKey(data.keys.menu, menuKey)
-			aimKey = toKey(data.keys.aim, aimKey)
-			resetKey = toKey(data.keys.reset, resetKey)
-			refreshKeyButtons()
-		end
-		if type(data.aimPart) == "number" then
-			aim.partIndex = math.clamp(math.floor(data.aimPart), 1, #AIM_PARTS)
-			partBtn.Text = "Target: " .. AIM_PARTS[aim.partIndex]
-		end
-		if type(data.tracerOrigin) == "string" and table.find(TRACER_ORIGINS, data.tracerOrigin) then
-			setTracerOrigin(data.tracerOrigin)
-		end
-		if type(data.xh) == "table" then
-			if type(data.xh.style) == "number" then xh.style = math.clamp(math.floor(data.xh.style), 1, #XH_STYLES) end
-			if type(data.xh.color) == "number" then xh.color = math.clamp(math.floor(data.xh.color), 1, #XH_COLORS) end
-			refreshCrosshairButtons()
-			rebuildCrosshair()
-		end
-		if type(data.theme) == "string" then
-			for i, T in ipairs(THEMES) do
-				if T.name == data.theme then applyTheme(i) break end
-			end
-		end
-	end)
-	loadingSettings = false
-	if not ok then warn("[Nestea] load error: " .. tostring(err)) end
-end
-
-local SAVE_FILE = "NesteaPanel_settings.json"
--- Standard Roblox LocalScripts cannot write files. If your environment provides
--- writefile / readfile / isfile they are used; otherwise settings live for this session.
-local function canUseFiles()
-	return type(writefile) == "function" and type(readfile) == "function" and type(isfile) == "function"
-end
-
-local function saveSettings()
-	local ok, json = pcall(function() return HttpService:JSONEncode(collectSettings()) end)
-	if not ok then
-		notify("Save failed")
-		return
-	end
-	player:SetAttribute("NesteaSettings", json) -- session copy
-	if canUseFiles() then
-		local ok2 = pcall(writefile, SAVE_FILE, json)
-		notify(ok2 and "Settings saved" or "Saved for this session only")
-	else
-		notify("Saved for this session (no file access here)")
-	end
-end
-
-local function loadSettings(quiet)
-	local json
-	if canUseFiles() then
-		local ok, res = pcall(function()
-			if isfile(SAVE_FILE) then return readfile(SAVE_FILE) end
-			return nil
-		end)
-		if ok and type(res) == "string" then json = res end
-	end
-	if not json then
-		local a = player:GetAttribute("NesteaSettings")
-		if type(a) == "string" then json = a end
-	end
-	if not json then
-		if not quiet then notify("No saved settings found") end
-		return
-	end
-	local ok, data = pcall(function() return HttpService:JSONDecode(json) end)
-	if ok and type(data) == "table" then
-		applySettings(data)
-		if not quiet then notify("Settings loaded") end
-	elseif not quiet then
-		notify("Saved settings are corrupted")
-	end
-end
-
-local function resetAllSettings()
-	loadingSettings = true
-	pcall(function()
-		for id, obj in pairs(widgets) do
-			if not SAVE_IF[id] then obj.set(obj.default) end
-		end
-		resetWorldValues()
-		flyKey, menuKey, aimKey, resetKey = Enum.KeyCode.F, Enum.KeyCode.RightShift, Enum.KeyCode.Q, Enum.KeyCode.X
-		refreshKeyButtons()
-		aim.partIndex = 1
-		partBtn.Text = "Target: " .. AIM_PARTS[1]
-		setTracerOrigin("Center")
-		xh.style, xh.color = 1, 1
-		refreshCrosshairButtons()
-		rebuildCrosshair()
-		applyTheme(1)
-	end)
-	loadingSettings = false
-	notify("All settings reset")
-end
-
-makeHeading(setPage, "GUI THEME", 1)
-themeBtn = makeButton(setPage, "Theme: Rainbow", 2, function()
-	applyTheme(currentThemeIndex % #THEMES + 1)
-end)
-makeHeading(setPage, "SAVE SETTINGS", 3)
-makeButton(setPage, "Save Settings", 4, saveSettings)
-makeButton(setPage, "Load Settings", 5, function() loadSettings(false) end)
-makeButton(setPage, "Reset All Settings", 6, resetAllSettings)
-new("TextLabel", {
-	Size = UDim2.new(1, 0, 0, 84),
-	BackgroundTransparency = 1,
-	Text = "Saves every toggle, slider, keybind, the theme, the crosshair and the tracer origin. "
-		.. "They are written to a file when your environment allows it; "
-		.. "otherwise they are kept for this session only.",
-	TextColor3 = C.dim,
-	Font = Enum.Font.Gotham,
-	TextSize = 11,
-	TextWrapped = true,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	TextYAlignment = Enum.TextYAlignment.Top,
-	LayoutOrder = 7,
-}, setPage)
 
 ------------------------------------------------------------
 -- Menu behavior: drag, minimize, close, hide key, rebinding
@@ -3129,6 +2798,7 @@ local mobileGui = new("ScreenGui", {
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 }, playerGui)
 
+do -- (scoped so the main chunk stays under the 200-local limit)
 local mobileButtonsOn = IS_TOUCH
 local dockPage = 1 -- 1 = MAIN, 2 = TOOLS
 local dock = new("Frame", {
@@ -3333,6 +3003,7 @@ new("TextLabel", {
 }, mobPage)
 
 refreshMobile()
+end
 
 ------------------------------------------------------------
 -- Boot sequence: loading screen -> panel reveal
@@ -3348,10 +3019,6 @@ task.spawn(function()
 		Loader.setProgress(s[1], s[2])
 		task.wait(0.9)
 	end
-
-	Loader.setProgress(0.78, "Loading settings...")
-	pcall(loadSettings, true)
-	task.wait(0.4)
 
 	Loader.setProgress(0.86, "Finishing up...")
 	task.wait(0.9)
