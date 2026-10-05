@@ -2183,6 +2183,63 @@ player.CharacterAdded:Connect(function(char)
 	if noAnim then applyNoAnim(char) end
 end)
 
+-- No Ragdoll: keeps the character out of ragdoll states and repairs custom ragdolls
+do -- scoped, so it adds no locals to the main chunk (200-local limit)
+	local nr = { on = false, t = 0 }
+
+	function nr.fix(char, scanJoints)
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not hum then return end
+
+		-- stop the humanoid from entering ragdoll-type states
+		hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+		hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+		local st = hum:GetState()
+		if st == Enum.HumanoidStateType.Ragdoll
+			or st == Enum.HumanoidStateType.FallingDown
+			or st == Enum.HumanoidStateType.Physics then
+			hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end
+		-- PlatformStand is how many games stun you, but Fly needs it, so leave it alone while flying
+		if hum.PlatformStand and not flying then
+			hum.PlatformStand = false
+		end
+
+		-- custom ragdolls: turn the joints back on and remove the ragdoll constraints
+		if scanJoints then
+			for _, d in ipairs(char:GetDescendants()) do
+				if d:IsA("Motor6D") then
+					if not d.Enabled then d.Enabled = true end
+				elseif d:IsA("BallSocketConstraint") then
+					d:Destroy()
+				end
+			end
+		end
+	end
+
+	makeToggle(mePage, "No Ragdoll", 15, false, function(v)
+		nr.on = v
+		if not v then
+			-- give the humanoid its normal states back
+			local _, hum = getRoot()
+			if hum then
+				hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+				hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+			end
+		end
+		notify("No Ragdoll: " .. (v and "ON" or "OFF"))
+	end)
+
+	RunService.Heartbeat:Connect(function(dt)
+		if not nr.on then return end
+		-- states are checked every frame, joints only ~7 times per second
+		nr.t += dt
+		local scan = nr.t >= 0.15
+		if scan then nr.t = 0 end
+		nr.fix(player.Character, scan)
+	end)
+end
+
 ------------------------------------------------------------
 -- WORLD tab
 ------------------------------------------------------------
