@@ -57,6 +57,20 @@ local esp = {
 	boxFillT = 70,       -- box fill transparency in %
 	rgb = false,         -- RGB mode: every ESP element cycles through one color
 	rgbSpeed = 30,
+	-- colors (changed from the gear settings of each ESP feature)
+	fillColor = Color3.fromRGB(255, 60, 60),
+	outlineColor = Color3.fromRGB(255, 177, 177),
+	nameColor = Color3.fromRGB(255, 157, 157),
+	distColor = Color3.fromRGB(200, 200, 220),
+	hpFull = Color3.fromRGB(60, 255, 120),
+	hpLow = Color3.fromRGB(255, 70, 70),
+	tracerColor = Color3.fromRGB(255, 60, 60),
+	boxColor = Color3.fromRGB(255, 60, 60),
+	boxFillColor = Color3.fromRGB(255, 60, 60),
+	skeletonColor = Color3.fromRGB(255, 60, 60),
+	customTeam = false,  -- use your own teammate / enemy colors instead of the game's team colors
+	allyColor = Color3.fromRGB(60, 255, 120),
+	enemyColor = Color3.fromRGB(255, 60, 60),
 }
 
 -- extra settings used by the gear panels (kept in one table to save local variables)
@@ -147,27 +161,32 @@ do
 	local rng = Random.new()
 
 	-- easy tweaks -----------------------------------------------------------
-	local BANNER_TOP = Color3.fromRGB(0, 0, 0)        -- banner color (top)  -> black
-	local BANNER_BOT = Color3.fromRGB(0, 0, 0)        -- banner color (bottom) -> black
-	local BANNER_TEXT = "NESTEA MAN'S PANEL"
-	local WELCOME_TEXT = "WELCOME TO"
+	local BANNER_TOP = Color3.fromRGB(255, 117, 24)   -- banner color (top)  -> pumpkin orange
+	local BANNER_BOT = Color3.fromRGB(58, 8, 74)      -- banner color (bottom) -> spooky purple
+	local BANNER_TEXT = "🎃 NESTEA MAN'S PANEL 🧛"
+	local WELCOME_TEXT = "HAPPY HALLOWEEN"
 	local N_TICKS = 28                                -- segments of the loading arc
-	local OVERLAY_TRANSPARENCY = 0.65                 -- higher = you see more of the map
+	local OVERLAY_TRANSPARENCY = 0.5                 -- higher = you see more of the map
 	local CAM_SPEED = 0.1                             -- how fast the camera orbits the map
 	local PANEL_LINES = {                             -- right side "updates" panel
-		{ "UPDATES", 36, true },
-		{ "Anti Void", 20, true },
-		{ "New loading screen", 20, true },
-		{ "Configuration at every feature", 20, true },
-		{ "And MORE", 20, true },
-		{ "Features", 28, true },
+		{ "🎃 UPDATES 🎃", 40, true },
+		{ "🧛 Skybox Changer", 24, true },
+		{ "🎃 Skin Changer (Visual)", 24, true },
+		{ "🧛 FPS Display", 24, true },
+		{ "🎃 Ping Display", 24, true },
+		{ "🧛 Keystrokes", 24, true },
+		{ "🎃 Keybinds", 24, true },
+		{ "🧛 And MORE...", 24, true },
+		{ "🎃 Features 🧛", 32, true },
 		{ "Fly, ESP, Aim and Silent Aim\nNoclip, Click TP, Instant Prompts\nThemes, Fullbright, Anti-AFK", 13, false },
 	}
 	-------------------------------------------------------------------------
 
 	local BLACK = Color3.new(0, 0, 0)
 	local TICK_OFF = Color3.fromRGB(100, 100, 112)
-	local ICE = Color3.fromRGB(170, 215, 255)
+	local ICE = Color3.fromRGB(255, 120, 0)
+	local ORANGE = Color3.fromRGB(255, 120, 0)
+	local PURPLE = Color3.fromRGB(25, 5, 35)
 
 	local function randHex(n)
 		local s = ""
@@ -249,7 +268,7 @@ do
 	-- soft dark overlay (the map stays visible behind it, no blur)
 	local root = new("Frame", {
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = BLACK,
+		BackgroundColor3 = PURPLE,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 	}, lg)
@@ -257,17 +276,19 @@ do
 
 	-- floating dust particles
 	local parts = {}
-	for i = 1, 26 do
-		local sz = rng:NextInteger(3, 7)
-		local f = new("Frame", {
-			Size = UDim2.fromOffset(sz, sz),
+	local EMOJIS = { "🎃", "🧛" }
+	for i = 1, 22 do
+		local sz = rng:NextInteger(18, 34)
+		local f = new("TextLabel", {
+			Size = UDim2.fromOffset(sz + 10, sz + 10),
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			BackgroundColor3 = WHITE,
-			BackgroundTransparency = rng:NextNumber(0.6, 0.85),
+			BackgroundTransparency = 1,
+			Text = EMOJIS[(i % #EMOJIS) + 1],
+			TextSize = sz,
+			TextTransparency = rng:NextNumber(0.35, 0.65),
 			BorderSizePixel = 0,
 		}, root)
-		new("UICorner", { CornerRadius = UDim.new(0.5, 0) }, f)
-		parts[i] = { f = f, x = rng:NextNumber(), y = rng:NextNumber(), v = rng:NextNumber(0.02, 0.07), w = rng:NextNumber(0.5, 2) }
+		parts[i] = { f = f, x = rng:NextNumber(), y = rng:NextNumber(), v = rng:NextNumber(0.03, 0.08), w = rng:NextNumber(0.5, 2) }
 	end
 
 	-- animated elements: each fades / scales / slides in, and back out at the end
@@ -299,8 +320,8 @@ do
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		Text = WELCOME_TEXT,
-		Font = Enum.Font.GothamBlack,
-		TextSize = 44,
+		Font = Enum.Font.Creepster,
+		TextSize = 52,
 		TextColor3 = WHITE,
 	}, welcomeG, 3)
 
@@ -323,7 +344,7 @@ do
 	}, bannerG)
 	corner(main, 14)
 	new("UIGradient", { Rotation = 90, Color = ColorSequence.new(BANNER_TOP, BANNER_BOT) }, main)
-	new("UIStroke", { Thickness = 3, Color = WHITE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, main)
+	new("UIStroke", { Thickness = 3, Color = ORANGE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, main)
 	local gloss = new("Frame", {
 		Size = UDim2.new(1, 0, 0.45, 0),
 		BackgroundColor3 = WHITE,
@@ -343,8 +364,8 @@ do
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		Text = BANNER_TEXT,
-		Font = Enum.Font.GothamBlack,
-		TextSize = 42,
+		Font = Enum.Font.Creepster,
+		TextSize = 46,
 		TextColor3 = WHITE,
 	}, main, 3)
 
@@ -352,12 +373,12 @@ do
 	local panelE, panelG = elem(UDim2.fromOffset(310, 440), Vector2.new(1, 0.5), UDim2.new(1, -36, 0.5, 20), 0.75, Vector2.new(90, 0))
 	local pbg = new("Frame", {
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = BLACK,
+		BackgroundColor3 = Color3.fromRGB(14, 0, 20),
 		BackgroundTransparency = 0.1,
 		BorderSizePixel = 0,
 	}, panelG)
 	corner(pbg, 8)
-	new("UIStroke", { Thickness = 2, Color = WHITE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, pbg)
+	new("UIStroke", { Thickness = 2, Color = ORANGE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, pbg)
 	local pcontent = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, panelG)
 	new("UIPadding", {
 		PaddingTop = UDim.new(0, 14), PaddingBottom = UDim.new(0, 14),
@@ -374,9 +395,9 @@ do
 			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundTransparency = 1,
 			Text = ln[1],
-			Font = ln[3] and Enum.Font.GothamBold or Enum.Font.Gotham,
+			Font = ln[3] and Enum.Font.Creepster or Enum.Font.GothamMedium,
 			TextSize = ln[2],
-			TextColor3 = WHITE,
+			TextColor3 = ln[3] and Color3.fromRGB(255, 150, 40) or WHITE,
 			TextWrapped = true,
 			LayoutOrder = i,
 		}, pcontent, ln[2] >= 28 and 2 or 1.2)
@@ -405,8 +426,8 @@ do
 		Position = UDim2.fromOffset(CX, CY - 40),
 		BackgroundTransparency = 1,
 		Text = "0%",
-		Font = Enum.Font.GothamBlack,
-		TextSize = 32,
+		Font = Enum.Font.Creepster,
+		TextSize = 38,
 		TextColor3 = WHITE,
 	}, gaugeG, 2)
 	local status = outlined({
@@ -414,22 +435,22 @@ do
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromOffset(CX, CY - 12),
 		BackgroundTransparency = 1,
-		Text = "Starting...",
-		Font = Enum.Font.GothamMedium,
-		TextSize = 14,
+		Text = "Awakening the darkness...",
+		Font = Enum.Font.Creepster,
+		TextSize = 20,
 		TextColor3 = WHITE,
 	}, gaugeG, 1.5)
 
 	local tips = IS_TOUCH and {
-		"Tip: tap the round logo button to open or hide the panel",
-		"Tip: UP / DOWN buttons control flying height",
-		"Tip: use the TP tab to jump to other players",
-		"Tip: 3X boosts your fly speed",
+		"🎃 Tap the round logo button to hide the panel",
+		"🧛 UP / DOWN buttons control flying height",
+		"🎃 Use the TP tab to visit other players",
+		"🧛 3X boosts your fly speed",
 	} or {
-		"Tip: press RightShift to hide the panel",
-		"Tip: hold Alt while flying for 3x speed",
-		"Tip: use the TP tab to jump to other players",
-		"Tip: press the gear on a feature for its settings",
+		"🎃 Press RightShift to hide the panel",
+		"🧛 Hold Alt while flying for 3x speed",
+		"🎃 Use the TP tab to visit other players",
+		"🧛 Press the gear for spooky settings",
 	}
 	local tipLabel = outlined({
 		Size = UDim2.fromOffset(280, 18),
@@ -454,16 +475,16 @@ do
 		Visible = false,
 	}, playG)
 	corner(playBtn, 14)
-	new("UIStroke", { Thickness = 3, Color = WHITE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, playBtn)
+	new("UIStroke", { Thickness = 3, Color = ORANGE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, playBtn)
 	outlined({
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
-		Text = "PLAY",
-		Font = Enum.Font.GothamBlack,
-		TextSize = 36,
+		Text = "🎃 PLAY 🧛",
+		Font = Enum.Font.Creepster,
+		TextSize = 40,
 		TextColor3 = WHITE,
 	}, playBtn, 3)
-	playBtn.MouseEnter:Connect(function() tween(playBtn, 0.15, { BackgroundColor3 = Color3.fromRGB(40, 40, 48) }) end)
+	playBtn.MouseEnter:Connect(function() tween(playBtn, 0.15, { BackgroundColor3 = Color3.fromRGB(70, 25, 90) }) end)
 	playBtn.MouseLeave:Connect(function() tween(playBtn, 0.15, { BackgroundColor3 = BLACK }) end)
 	playBtn.Activated:Connect(function()
 		if ready then clicked = true end
@@ -475,7 +496,7 @@ do
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.new(1, -20, 1, -14),
 		BackgroundTransparency = 1,
-		Text = "USER  " .. string.upper(player.DisplayName),
+		Text = "🧛 USER  " .. string.upper(player.DisplayName),
 		Font = Enum.Font.Code,
 		TextSize = 12,
 		TextColor3 = Color3.fromRGB(215, 215, 225),
@@ -523,7 +544,7 @@ do
 		for i, tk in ipairs(ticks) do
 			if i <= nOn then
 				local k = 0.5 + 0.5 * math.sin(t * 6 - i * 0.5)
-				tk.BackgroundColor3 = WHITE:Lerp(ICE, k * 0.6)
+				tk.BackgroundColor3 = ICE:Lerp(Color3.fromRGB(255, 225, 120), k * 0.7)
 				tk.Size = UDim2.fromOffset(7, i == nOn and 26 or 22)
 			else
 				tk.BackgroundColor3 = TICK_OFF
@@ -588,7 +609,7 @@ do
 		local deadline = os.clock() + 6
 		while shown < 0.999 and os.clock() < deadline do task.wait() end
 
-		status.Text = "Press PLAY to start"
+		status.Text = "Press PLAY... if you dare"
 		ready = true
 		playBtn.Visible = true
 		playE.startAt = 0 -- the PLAY button fades in now
@@ -664,10 +685,10 @@ local title = new("TextLabel", {
 	Size = UDim2.new(1, -90, 0, 28),
 	Position = UDim2.fromOffset(16, 8),
 	BackgroundTransparency = 1,
-	Text = "NESTEA MAN'S PANEL",
+	Text = "NESTEA MAN'S PANEL 🎃",
 	TextColor3 = WHITE,
-	Font = Enum.Font.GothamBlack,
-	TextSize = 19,
+	Font = Enum.Font.Creepster,
+	TextSize = 23,
 	TextXAlignment = Enum.TextXAlignment.Left,
 }, header)
 new("UIStroke", { Thickness = 1.5, Color = Color3.new(0, 0, 0), ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual }, title)
@@ -676,7 +697,7 @@ local subtitle = new("TextLabel", {
 	Size = UDim2.new(1, -90, 0, 16),
 	Position = UDim2.fromOffset(16, 34),
 	BackgroundTransparency = 1,
-	Text = "FLY  •  ESP  •  AIM  •  TOOLS",
+	Text = "🧛 FLY  •  ESP  •  AIM  •  TOOLS",
 	TextColor3 = C.dim,
 	Font = Enum.Font.GothamBold,
 	TextSize = 12,
@@ -1632,6 +1653,383 @@ do -- scoped, so it adds no locals to the main chunk (200-local limit)
 	end)
 end
 
+-- Skybox Changer (MAIN tab): swaps the sky for Space, Galaxy, Halloween and more. Only you see it.
+-- Want your own pictures for Space / Galaxy? Upload the image to Roblox (create.roblox.com > Creations > Decals)
+-- and paste its id between the quotes, like "rbxassetid://123456789". Left empty, a star + haze sky is used.
+do -- scoped, so it adds no locals to the main chunk (200-local limit)
+	local SKY_IMAGES = {
+		Space = "",  -- the Milky Way picture
+		Galaxy = "", -- the purple / pink lightning nebula picture
+	}
+	local function rgb(r, g, b) return Color3.fromRGB(r, g, b) end
+	local sb = {
+		on = false, idx = 1, stars = 5000, changeTime = true,
+		sky = nil, atmo = nil, saved = nil, hiddenSkies = {}, hiddenAtmos = {},
+	}
+	-- tex = true uses Roblox's built-in sky pictures, false = pure black sky (stars only)
+	-- atmo = { Density, Color, Decay, Glare, Haze }
+	local PRESETS = {
+		{ name = "Space", tex = false, clock = 0, sun = 0, moon = 0,
+			atmo = { 0.18, rgb(95, 85, 120), rgb(70, 45, 40), 0, 1 } },
+		{ name = "Galaxy", tex = false, clock = 0, sun = 0, moon = 0, shift = rgb(120, 60, 200),
+			atmo = { 0.5, rgb(140, 70, 235), rgb(255, 60, 150), 0.1, 2.5 } },
+		{ name = "Halloween Night", tex = false, clock = 0, sun = 0, moon = 20, shift = rgb(255, 120, 30),
+			atmo = { 0.4, rgb(255, 120, 30), rgb(120, 40, 10), 0, 1.5 } },
+		{ name = "Blood Moon", tex = false, clock = 0, sun = 0, moon = 20, shift = rgb(200, 20, 20),
+			atmo = { 0.45, rgb(200, 20, 20), rgb(90, 0, 0), 0, 2 } },
+		{ name = "Night", tex = true, clock = 0, sun = 21, moon = 11 },
+		{ name = "Sunset", tex = true, clock = 17.8, sun = 21, moon = 11,
+			atmo = { 0.3, rgb(255, 170, 110), rgb(255, 100, 60), 0.3, 1 } },
+		{ name = "Dawn", tex = true, clock = 6, sun = 21, moon = 11,
+			atmo = { 0.3, rgb(255, 190, 200), rgb(255, 130, 150), 0.2, 1 } },
+		{ name = "Clear Day", tex = true, clock = 14, sun = 21, moon = 11 },
+	}
+	local FACES = { Bk = "bk", Dn = "dn", Ft = "ft", Lf = "lf", Rt = "rt", Up = "up" }
+	local nextBtn
+
+	function sb.label()
+		if nextBtn then nextBtn.Text = "Next Skybox  (" .. PRESETS[sb.idx].name .. ")" end
+	end
+
+	function sb.apply()
+		local P = PRESETS[sb.idx]
+		if not sb.saved then
+			sb.saved = { clock = Lighting.ClockTime, top = Lighting.ColorShift_Top, bottom = Lighting.ColorShift_Bottom }
+			-- put the game's own sky / atmosphere aside until the feature is turned off
+			for _, c in ipairs(Lighting:GetChildren()) do
+				if c:IsA("Sky") then
+					c.Parent = nil
+					sb.hiddenSkies[#sb.hiddenSkies + 1] = c
+				elseif c:IsA("Atmosphere") then
+					c.Parent = nil
+					sb.hiddenAtmos[#sb.hiddenAtmos + 1] = c
+				end
+			end
+		end
+
+		if not sb.sky then
+			sb.sky = Instance.new("Sky")
+			sb.sky.Name = "NesteaSky"
+			sb.sky.Parent = Lighting
+		end
+		local sky = sb.sky
+		local img = SKY_IMAGES[P.name] or ""
+		for prop, face in pairs(FACES) do
+			if img ~= "" then
+				sky["Skybox" .. prop] = img -- your own picture on every side
+			else
+				sky["Skybox" .. prop] = P.tex and ("rbxasset://textures/sky/sky512_" .. face .. ".tex") or ""
+			end
+		end
+		sky.CelestialBodiesShown = true
+		sky.StarCount = sb.stars
+		sky.SunAngularSize = P.sun
+		sky.MoonAngularSize = P.moon
+
+		if P.atmo then
+			if not sb.atmo then
+				sb.atmo = Instance.new("Atmosphere")
+				sb.atmo.Name = "NesteaAtmosphere"
+				sb.atmo.Parent = Lighting
+			end
+			local a = sb.atmo
+			a.Density, a.Color, a.Decay, a.Glare, a.Haze = table.unpack(P.atmo)
+			if img ~= "" then a.Density = 0 end -- a picture is shown clean, without haze
+		elseif sb.atmo then
+			sb.atmo:Destroy()
+			sb.atmo = nil
+		end
+
+		if sb.changeTime then Lighting.ClockTime = P.clock end
+		Lighting.ColorShift_Top = P.shift or sb.saved.top
+		Lighting.ColorShift_Bottom = P.shift or sb.saved.bottom
+	end
+
+	function sb.restore()
+		if not sb.saved then return end
+		if sb.sky then
+			sb.sky:Destroy()
+			sb.sky = nil
+		end
+		if sb.atmo then
+			sb.atmo:Destroy()
+			sb.atmo = nil
+		end
+		for _, c in ipairs(sb.hiddenSkies) do c.Parent = Lighting end
+		for _, c in ipairs(sb.hiddenAtmos) do c.Parent = Lighting end
+		sb.hiddenSkies, sb.hiddenAtmos = {}, {}
+		if sb.changeTime then Lighting.ClockTime = sb.saved.clock end
+		Lighting.ColorShift_Top = sb.saved.top
+		Lighting.ColorShift_Bottom = sb.saved.bottom
+		sb.saved = nil
+	end
+
+	makeHeading(mainPage, "SKYBOX", 3)
+	local tog
+	tog = makeToggle(mainPage, "Skybox Changer", 4, false, function(v)
+		sb.on = v
+		if v then sb.apply() else sb.restore() end
+		notify("Skybox: " .. (v and PRESETS[sb.idx].name or "OFF"))
+	end, {
+		desc = "Changes the sky (only you can see it). Pick a sky below or use the Next Skybox button on the main page.",
+		build = function(p)
+			makeHeading(p, "SKIES", 1)
+			for i, P in ipairs(PRESETS) do
+				makeButton(p, P.name, 1 + i, function()
+					sb.idx = i
+					sb.label()
+					if tog.get() then
+						sb.apply()
+						notify("Skybox: " .. P.name)
+					else
+						tog.set(true)
+					end
+				end)
+			end
+			makeSlider(p, "Star Count", 20, 0, 5000, sb.stars, function(v)
+				sb.stars = v
+				if sb.on then sb.apply() end
+			end)
+			makeToggle(p, "Change Time Of Day Too", 21, sb.changeTime, function(v)
+				sb.changeTime = v
+				if sb.on then sb.apply() end
+			end)
+		end,
+	})
+	nextBtn = makeButton(mainPage, "Next Skybox", 5, function()
+		sb.idx = sb.idx % #PRESETS + 1
+		sb.label()
+		if tog.get() then
+			sb.apply()
+			notify("Skybox: " .. PRESETS[sb.idx].name)
+		else
+			tog.set(true)
+		end
+	end)
+	sb.label()
+end
+
+-- Skin Changer (MAIN tab, visual only): type a user ID (or a username) and your character wears their look.
+-- Only you can see it (it is built on your own screen, other players still see your real skin).
+do -- scoped, so it adds no locals to the main chunk (200-local limit)
+	local sk = { userId = nil, keep = true, busy = false }
+
+	-- puts one accessory (hair, hat...) on you and makes sure it is welded to the right body part
+	function sk.addAcc(char, hum, acc)
+		local clone = acc:Clone()
+		if not pcall(function() hum:AddAccessory(clone) end) then
+			clone.Parent = char
+		end
+		local handle = clone:FindFirstChild("Handle")
+		if not handle then return end
+		handle.Anchored = false
+		handle.CanCollide = false
+		handle.CanQuery = false
+		handle.CanTouch = false
+		handle.Massless = true
+
+		local w = handle:FindFirstChild("AccessoryWeld")
+		if w and w:IsA("Weld") and w.Part0 and w.Part0:IsDescendantOf(char) and w.Part1 == handle then
+			return -- already attached correctly
+		end
+		-- build the weld ourselves: match the accessory's attachment (HairAttachment, HatAttachment...) to yours
+		for _, d in ipairs(handle:GetChildren()) do
+			if d:IsA("Weld") or d:IsA("WeldConstraint") then d:Destroy() end
+		end
+		local hatt = handle:FindFirstChildWhichIsA("Attachment")
+		local target
+		if hatt then
+			for _, part in ipairs(char:GetChildren()) do
+				if part:IsA("BasePart") then
+					local a = part:FindFirstChild(hatt.Name)
+					if a and a:IsA("Attachment") then
+						target = a
+						break
+					end
+				end
+			end
+		end
+		local nw = Instance.new("Weld")
+		nw.Name = "AccessoryWeld"
+		nw.Part1 = handle
+		if target then
+			nw.Part0 = target.Parent
+			nw.C0 = target.CFrame
+			nw.C1 = hatt.CFrame
+		else
+			nw.Part0 = char:FindFirstChild("Head")
+			nw.C0 = CFrame.new(0, 0.6, 0)
+		end
+		nw.Parent = handle
+	end
+
+	-- copies the look of a user onto your character (clothes, colors, accessories, face)
+	function sk.put(userId)
+		local char = player.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not hum then
+			notify("Skin: no character yet")
+			return false
+		end
+
+		-- method 1: download their appearance and copy it onto you by hand (works from a LocalScript)
+		local ok, app = pcall(function() return Players:GetCharacterAppearanceAsync(userId) end)
+		if ok and app then
+			for _, c in ipairs(char:GetChildren()) do
+				if c:IsA("Accessory") or c:IsA("Shirt") or c:IsA("Pants") or c:IsA("ShirtGraphic")
+					or c:IsA("BodyColors") or c:IsA("CharacterMesh") then
+					c:Destroy()
+				end
+			end
+			for _, c in ipairs(app:GetChildren()) do
+				if c:IsA("Shirt") or c:IsA("Pants") or c:IsA("ShirtGraphic")
+					or c:IsA("BodyColors") or c:IsA("CharacterMesh") then
+					c:Clone().Parent = char
+				end
+			end
+			-- hair / hats / accessories
+			local count = 0
+			for _, d in ipairs(app:GetDescendants()) do
+				if d:IsA("Accessory") then
+					sk.addAcc(char, hum, d)
+					count += 1
+				end
+			end
+			-- nothing came with the appearance? build a model from their description and take the accessories from it
+			if count == 0 then
+				pcall(function()
+					local desc = Players:GetHumanoidDescriptionFromUserId(userId)
+					local dummy = Players:CreateHumanoidModelFromDescription(desc, hum.RigType)
+					for _, d in ipairs(dummy:GetDescendants()) do
+						if d:IsA("Accessory") then
+							sk.addAcc(char, hum, d)
+						end
+					end
+					dummy:Destroy()
+				end)
+			end
+			-- face
+			local faceSrc
+			for _, d in ipairs(app:GetDescendants()) do
+				if d:IsA("Decal") and d.Name:lower() == "face" then
+					faceSrc = d
+					break
+				end
+			end
+			local head = char:FindFirstChild("Head")
+			if faceSrc and head then
+				local f = head:FindFirstChildOfClass("Decal")
+				if f then
+					f.Texture = faceSrc.Texture
+				else
+					faceSrc:Clone().Parent = head
+				end
+			end
+			app:Destroy()
+			return true
+		end
+
+		-- method 2 (backup): apply a HumanoidDescription
+		local okD, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(userId) end)
+		if okD and desc then
+			local applied = pcall(function() hum:ApplyDescriptionReset(desc) end)
+			if not applied then
+				applied = pcall(function() hum:ApplyDescription(desc) end)
+			end
+			return applied
+		end
+		return false
+	end
+
+	-- input can be a user ID (numbers) or a username
+	function sk.load(input)
+		local text = (input or ""):match("^%s*@?(.-)%s*$")
+		if text == "" then
+			notify("Type a user ID first")
+			return
+		end
+		if sk.busy then return end
+		sk.busy = true
+		notify("Skin: loading " .. text .. "...")
+		task.spawn(function()
+			local userId = text:match("^%d+$") and tonumber(text) or nil
+			if not userId then
+				local okId, id = pcall(function() return Players:GetUserIdFromNameAsync(text) end)
+				userId = okId and id or nil
+			end
+			if not userId then
+				notify("User not found: " .. text)
+				sk.busy = false
+				return
+			end
+			local okN, uname = pcall(function() return Players:GetNameFromUserIdAsync(userId) end)
+			if sk.put(userId) then
+				sk.userId = userId
+				notify("Skin: now wearing " .. (okN and uname or tostring(userId)))
+			else
+				notify("Couldn't load that skin (wrong ID?)")
+			end
+			sk.busy = false
+		end)
+	end
+
+	function sk.reset()
+		if sk.busy then return end
+		sk.busy = true
+		sk.userId = nil
+		task.spawn(function()
+			if sk.put(player.UserId) then
+				notify("Skin: back to your own")
+			else
+				notify("Couldn't reset (respawn to get your skin back)")
+			end
+			sk.busy = false
+		end)
+	end
+
+	makeHeading(mainPage, "SKIN CHANGER (VISUAL)", 7)
+
+	-- user ID box
+	local row = new("Frame", {
+		Size = UDim2.new(1, 0, 0, 40),
+		BackgroundColor3 = C.row,
+		BorderSizePixel = 0,
+		LayoutOrder = 8,
+	}, mainPage)
+	corner(row, 10)
+	local box = new("TextBox", {
+		Size = UDim2.new(1, -16, 0, 28),
+		Position = UDim2.fromOffset(8, 6),
+		BackgroundColor3 = C.panel,
+		BorderSizePixel = 0,
+		Text = "",
+		PlaceholderText = "Type a user ID (or username)...",
+		PlaceholderColor3 = C.dim,
+		TextColor3 = C.text,
+		Font = Enum.Font.GothamMedium,
+		TextSize = 13,
+		ClearTextOnFocus = false,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	}, row)
+	corner(box, 8)
+	new("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }, box)
+	box.FocusLost:Connect(function(enter)
+		if enter then sk.load(box.Text) end
+	end)
+
+	makeButton(mainPage, "Apply Skin", 9, function() sk.load(box.Text) end)
+	makeButton(mainPage, "Reset To My Skin", 10, function() sk.reset() end)
+	makeToggle(mainPage, "Keep Skin After Respawn", 11, sk.keep, function(v) sk.keep = v end, { noBind = true })
+
+	-- re-apply the chosen skin when you respawn
+	player.CharacterAdded:Connect(function(char)
+		if not (sk.keep and sk.userId) then return end
+		if not char:WaitForChild("Humanoid", 10) then return end
+		task.wait(1.5) -- let the game finish dressing you first
+		if sk.keep and sk.userId then sk.put(sk.userId) end
+	end)
+end
+
 RunService.RenderStepped:Connect(function(dt)
 	if not flying then return end
 	local root, hum = getRoot()
@@ -1809,6 +2207,98 @@ local function setESP(on, silent)
 	if not silent then notify("ESP: " .. (on and "ON" or "OFF")) end
 end
 
+-- Color picker rows for a gear panel: preview + preset swatches + Red / Green / Blue sliders.
+-- key = name of the Color3 field inside the esp table.
+function SUI.colorRows(p, key, label, base)
+	local function chan(v) return math.floor(v * 255 + 0.5) end
+	local c0 = esp[key]
+	makeHeading(p, label, base)
+
+	local prev = new("Frame", {
+		Size = UDim2.new(1, 0, 0, 34),
+		BackgroundColor3 = C.row,
+		BorderSizePixel = 0,
+		LayoutOrder = base + 1,
+	}, p)
+	corner(prev, 10)
+	new("TextLabel", {
+		Size = UDim2.new(1, -100, 1, 0),
+		Position = UDim2.fromOffset(12, 0),
+		BackgroundTransparency = 1,
+		Text = "Preview",
+		TextColor3 = C.text,
+		Font = Enum.Font.GothamMedium,
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	}, prev)
+	local sw = new("Frame", {
+		Size = UDim2.fromOffset(70, 20),
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -12, 0.5, 0),
+		BackgroundColor3 = c0,
+		BorderSizePixel = 0,
+	}, prev)
+	corner(sw, 6)
+	new("UIStroke", { Thickness = 1, Color = WHITE, Transparency = 0.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, sw)
+
+	local rowP = new("Frame", {
+		Size = UDim2.new(1, 0, 0, 34),
+		BackgroundColor3 = C.row,
+		BorderSizePixel = 0,
+		LayoutOrder = base + 2,
+	}, p)
+	corner(rowP, 10)
+	new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		Padding = UDim.new(0, 4),
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+	}, rowP)
+
+	local sr, sg, sbl
+	local function upd()
+		local c = Color3.fromRGB(sr.get(), sg.get(), sbl.get())
+		esp[key] = c
+		sw.BackgroundColor3 = c
+	end
+	local PRE = {
+		{ 255, 60, 60 }, { 255, 140, 30 }, { 255, 230, 60 }, { 60, 255, 120 }, { 60, 220, 255},
+		{ 70, 110, 255 }, { 170, 80, 255 }, { 255, 100, 200 }, { 255, 255, 255 },
+	}
+	for _, col in ipairs(PRE) do
+		local b = new("TextButton", {
+			Size = UDim2.fromOffset(24, 24),
+			BackgroundColor3 = Color3.fromRGB(col[1], col[2], col[3]),
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+		}, rowP)
+		corner(b, 6)
+		b.MouseButton1Click:Connect(function()
+			sr.set(col[1], true)
+			sg.set(col[2], true)
+			sbl.set(col[3], true)
+			upd()
+		end)
+	end
+	sr = makeSlider(p, "Red", base + 3, 0, 255, chan(c0.R), upd)
+	sg = makeSlider(p, "Green", base + 4, 0, 255, chan(c0.G), upd)
+	sbl = makeSlider(p, "Blue", base + 5, 0, 255, chan(c0.B), upd)
+end
+
+-- the color shared by every ESP part when RGB mode or team colors are on (nil = use each feature's own color)
+function SUI.baseColor(plr, sameTeam)
+	if esp.rgb then
+		return Color3.fromHSV((os.clock() * esp.rgbSpeed / 100) % 1, 1, 1)
+	elseif esp.teamColors and plr.Team then
+		if esp.customTeam then
+			return sameTeam and esp.allyColor or esp.enemyColor
+		end
+		return plr.TeamColor.Color
+	end
+	return nil
+end
+
 espToggle = makeToggle(espPage, "ESP", 1, false, function(on) setESP(on) end, {
 	desc = "Highlights every player through walls. Highlight look, max range and RGB mode are here.",
 	build = function(p)
@@ -1819,6 +2309,8 @@ espToggle = makeToggle(espPage, "ESP", 1, false, function(on) setESP(on) end, {
 		SUI.presets(p, rg, { { "Close", 500 }, { "Medium", 1000 }, { "Far", 2000 }, { "Max", 5000 } }, 10)
 		makeToggle(p, "RGB Mode (all ESP)", 20, esp.rgb, function(v) esp.rgb = v end)
 		makeSlider(p, "RGB Speed", 21, 1, 200, esp.rgbSpeed, function(v) esp.rgbSpeed = v end)
+		SUI.colorRows(p, "fillColor", "HIGHLIGHT FILL COLOR", 30)
+		SUI.colorRows(p, "outlineColor", "HIGHLIGHT OUTLINE COLOR", 40)
 	end,
 })
 makeToggle(espPage, "Names", 2, esp.names, function(v) esp.names = v end, {
@@ -1826,6 +2318,7 @@ makeToggle(espPage, "Names", 2, esp.names, function(v) esp.names = v end, {
 	build = function(p)
 		makeSlider(p, "Text Size", 1, 8, 24, esp.nameSize, function(v) esp.nameSize = v end)
 		makeToggle(p, "Use Username (not display name)", 2, esp.username, function(v) esp.username = v end)
+		SUI.colorRows(p, "nameColor", "NAME COLOR", 30)
 	end,
 })
 makeToggle(espPage, "Distance", 3, esp.distance, function(v) esp.distance = v end, {
@@ -1833,12 +2326,15 @@ makeToggle(espPage, "Distance", 3, esp.distance, function(v) esp.distance = v en
 	build = function(p)
 		makeToggle(p, "Meters Instead Of Studs", 1, esp.meters, function(v) esp.meters = v end)
 		makeSlider(p, "Text Size", 2, 8, 20, esp.distSize, function(v) esp.distSize = v end)
+		SUI.colorRows(p, "distColor", "DISTANCE COLOR", 30)
 	end,
 })
 makeToggle(espPage, "Health Bars", 4, esp.health, function(v) esp.health = v end, {
 	desc = "Shows a health bar under the name.",
 	build = function(p)
 		makeSlider(p, "Bar Width %", 1, 30, 100, esp.hpWidth, function(v) esp.hpWidth = v end)
+		SUI.colorRows(p, "hpFull", "FULL HEALTH COLOR", 30)
+		SUI.colorRows(p, "hpLow", "LOW HEALTH COLOR", 40)
 	end,
 })
 makeToggle(espPage, "Tracers", 5, esp.tracers, function(v) esp.tracers = v end, {
@@ -1851,12 +2347,16 @@ makeToggle(espPage, "Tracers", 5, esp.tracers, function(v) esp.tracers = v end, 
 			esp.tracerOrigin = esp.tracerOrigin % 3 + 1
 			ob.Text = "Start Point: " .. names[esp.tracerOrigin]
 		end)
+		SUI.colorRows(p, "tracerColor", "TRACER COLOR", 30)
 	end,
 })
 makeToggle(espPage, "Team Colors", 6, esp.teamColors, function(v) esp.teamColors = v end, {
 	desc = "Colors players by their team.",
 	build = function(p)
 		makeToggle(p, "Hide Teammates", 1, esp.hideTeam, function(v) esp.hideTeam = v end)
+		makeToggle(p, "Use My Own Colors Below", 2, esp.customTeam, function(v) esp.customTeam = v end)
+		SUI.colorRows(p, "allyColor", "TEAMMATE COLOR", 30)
+		SUI.colorRows(p, "enemyColor", "ENEMY COLOR", 40)
 	end,
 })
 makeToggle(espPage, "Box", 8, esp.box, function(v) esp.box = v end, {
@@ -1865,12 +2365,15 @@ makeToggle(espPage, "Box", 8, esp.box, function(v) esp.box = v end, {
 		makeSlider(p, "Line Thickness", 1, 1, 8, esp.boxThick, function(v) esp.boxThick = v end)
 		makeToggle(p, "Box Fill", 2, esp.boxFill, function(v) esp.boxFill = v end)
 		makeSlider(p, "Fill Transparency %", 3, 0, 100, esp.boxFillT, function(v) esp.boxFillT = v end)
+		SUI.colorRows(p, "boxColor", "BOX LINE COLOR", 30)
+		SUI.colorRows(p, "boxFillColor", "BOX FILL COLOR", 40)
 	end,
 })
 makeToggle(espPage, "Skeleton", 9, esp.skeleton, function(v) esp.skeleton = v end, {
 	desc = "Draws the bones of every player.",
 	build = function(p)
 		makeSlider(p, "Line Thickness", 1, 1, 8, esp.skeletonThick, function(v) esp.skeletonThick = v end)
+		SUI.colorRows(p, "skeletonColor", "SKELETON COLOR", 30)
 	end,
 })
 
@@ -1948,12 +2451,7 @@ do
 			if not root or not hum or hum.Health <= 0 or dist > esp.range or (esp.hideTeam and sameTeam) then
 				hidePool(plr, 1)
 			else
-				local color = Color3.fromRGB(255, 60, 60)
-				if esp.rgb then
-					color = Color3.fromHSV((os.clock() * esp.rgbSpeed / 100) % 1, 1, 1)
-				elseif esp.teamColors and plr.Team then
-					color = plr.TeamColor.Color
-				end
+				local color = SUI.baseColor(plr, sameTeam) or esp.skeletonColor
 
 				local bones = char:FindFirstChild("UpperTorso") and R15 or R6
 				for i, bone in ipairs(bones) do
@@ -2015,18 +2513,13 @@ RunService.Heartbeat:Connect(function(dt)
 		local sameTeam = plr.Team ~= nil and plr.Team == player.Team
 		local inRange = dist <= esp.range and not (esp.hideTeam and sameTeam)
 
-		-- Color
-		local color = Color3.fromRGB(255, 60, 60)
-		if esp.rgb then
-			color = Color3.fromHSV((os.clock() * esp.rgbSpeed / 100) % 1, 1, 1)
-		elseif esp.teamColors and plr.Team then
-			color = plr.TeamColor.Color
-		end
+		-- Color (RGB mode / team colors win; otherwise each feature uses its own color)
+		local base = SUI.baseColor(plr, sameTeam)
 
 		d.highlight.Enabled = inRange
 		d.billboard.Enabled = inRange
-		d.highlight.FillColor = color
-		d.highlight.OutlineColor = color:Lerp(WHITE, 0.6)
+		d.highlight.FillColor = base or esp.fillColor
+		d.highlight.OutlineColor = base and base:Lerp(WHITE, 0.6) or esp.outlineColor
 		d.highlight.FillTransparency = esp.fillT / 100
 		d.highlight.OutlineTransparency = esp.outline and 0 or 1
 		d.highlight.DepthMode = esp.walls and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
@@ -2035,9 +2528,10 @@ RunService.Heartbeat:Connect(function(dt)
 			d.nameLabel.Visible = esp.names
 			d.nameLabel.Text = esp.username and plr.Name or plr.DisplayName
 			d.nameLabel.TextSize = esp.nameSize
-			d.nameLabel.TextColor3 = color:Lerp(WHITE, 0.5)
+			d.nameLabel.TextColor3 = base and base:Lerp(WHITE, 0.5) or esp.nameColor
 			d.distLabel.Visible = esp.distance
 			d.distLabel.TextSize = esp.distSize
+			d.distLabel.TextColor3 = esp.distColor
 			if esp.meters then
 				d.distLabel.Text = string.format("[%dm]", math.floor(dist * 0.28))
 			else
@@ -2049,7 +2543,7 @@ RunService.Heartbeat:Connect(function(dt)
 			if hum and hum.MaxHealth > 0 then
 				local r = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
 				d.hpFill.Size = UDim2.fromScale(r, 1)
-				d.hpFill.BackgroundColor3 = Color3.fromRGB(255, 70, 70):Lerp(Color3.fromRGB(60, 255, 120), r)
+				d.hpFill.BackgroundColor3 = esp.hpLow:Lerp(esp.hpFull, r)
 			end
 		end
 
@@ -2063,7 +2557,7 @@ RunService.Heartbeat:Connect(function(dt)
 				t.Size = UDim2.fromOffset(delta.Magnitude, esp.tracerThick)
 				t.Position = UDim2.fromOffset((origin.X + target.X) / 2, (origin.Y + target.Y) / 2)
 				t.Rotation = math.deg(math.atan2(delta.Y, delta.X))
-				t.BackgroundColor3 = color
+				t.BackgroundColor3 = base or esp.tracerColor
 				t.Visible = true
 			else
 				t.Visible = false
@@ -2097,8 +2591,8 @@ RunService.Heartbeat:Connect(function(dt)
 					bx.Position = UDim2.fromOffset(minX, minY)
 					bx.Size = UDim2.fromOffset(maxX - minX, maxY - minY)
 					d.boxStroke.Thickness = esp.boxThick
-					d.boxStroke.Color = color
-					bx.BackgroundColor3 = color
+					d.boxStroke.Color = base or esp.boxColor
+					bx.BackgroundColor3 = base or esp.boxFillColor
 					bx.BackgroundTransparency = esp.boxFill and (esp.boxFillT / 100) or 1
 					drawn = true
 				end
@@ -2291,7 +2785,7 @@ mouse.Button1Down:Connect(function()
 end)
 -- Mobile: tap anywhere in the world to teleport there
 UserInputService.TouchTapInWorld:Connect(function(pos, processed)
-	if processed or not clickTp then return end
+	if processed or not clickTp or Cfg.tapTp then return end
 	local root = getRoot()
 	if not root then return end
 	local ray = camera:ViewportPointToRay(pos.X, pos.Y)
@@ -2303,6 +2797,67 @@ UserInputService.TouchTapInWorld:Connect(function(pos, processed)
 		root.CFrame = CFrame.new(res.Position + Vector3.new(0, Cfg.tpOffset, 0))
 	end
 end)
+
+-- Click TP (Mobile): tap anywhere in the world to teleport there.
+-- A quick tap teleports; dragging the camera, pinching or tapping on buttons does not.
+do -- scoped, so it adds no locals to the main chunk (200-local limit)
+	local tap = { on = false, input = nil, active = {}, n = 0, start = Vector2.zero, t0 = 0, maxMove = 14, maxTime = 0.4 }
+
+	local function go(pos)
+		local root = getRoot()
+		if not root then return end
+		local ray = camera:ViewportPointToRay(pos.X, pos.Y)
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { player.Character }
+		local res = workspace:Raycast(ray.Origin, ray.Direction * 5000, params)
+		if res then
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.CFrame = CFrame.new(res.Position + Vector3.new(0, Cfg.tpOffset, 0))
+		end
+	end
+
+	Cfg.tapToggle = makeToggle(mePage, "Click TP (Mobile Tap)", 10, false, function(v)
+		tap.on = v
+		Cfg.tapTp = v -- the normal Click TP then leaves taps to this one
+		notify("Click TP (Mobile): " .. (v and "ON" or "OFF"))
+		if refreshMobile then refreshMobile() end
+	end, {
+		title = "Click TP (Mobile)",
+		desc = "Tap anywhere in the world to teleport there. A quick tap teleports, dragging the camera does not.",
+		build = function(p)
+			makeSlider(p, "Height Offset", 1, 0, 20, Cfg.tpOffset, function(v) Cfg.tpOffset = v end)
+			makeSlider(p, "Tap Tolerance (px)", 2, 4, 40, tap.maxMove, function(v) tap.maxMove = v end)
+			makeSlider(p, "Max Tap Time (x0.01s)", 3, 10, 100, math.floor(tap.maxTime * 100), function(v) tap.maxTime = v / 100 end)
+		end,
+	})
+
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if input.UserInputType ~= Enum.UserInputType.Touch or processed then return end
+		tap.active[input] = true
+		tap.n += 1
+		if tap.n > 1 then
+			tap.input = nil -- two fingers (pinch / zoom): not a tap
+		else
+			tap.input = input
+			tap.start = Vector2.new(input.Position.X, input.Position.Y)
+			tap.t0 = os.clock()
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.Touch or not tap.active[input] then return end
+		tap.active[input] = nil
+		tap.n = math.max(tap.n - 1, 0)
+		if input ~= tap.input then return end
+		tap.input = nil
+		if not tap.on then return end
+		local pos = Vector2.new(input.Position.X, input.Position.Y)
+		if (pos - tap.start).Magnitude <= tap.maxMove and os.clock() - tap.t0 <= tap.maxTime then
+			go(pos)
+		end
+	end)
+end
 
 -- Instant Proximity Prompts: every ProximityPrompt in the world gets HoldDuration = 0
 local instantPrompts = false
@@ -2723,6 +3278,8 @@ do
 
 	-- dark, realistic palettes (white / soft tinted accents, no neon)
 	local THEMES = {
+		theme("Halloween", rgb(16, 8, 22), rgb(28, 14, 38), rgb(42, 21, 54), rgb(88, 46, 104),
+			rgb(255, 238, 216), rgb(184, 142, 156), rgb(255, 140, 30), rgb(46, 16, 58), rgb(12, 5, 18)),
 		theme("Obsidian", rgb(12, 12, 14), rgb(20, 20, 23), rgb(28, 28, 32), rgb(58, 58, 64),
 			rgb(245, 245, 245), rgb(150, 150, 158), rgb(255, 255, 255), rgb(22, 22, 26), rgb(8, 8, 10)),
 		theme("Graphite", rgb(24, 26, 29), rgb(33, 36, 40), rgb(43, 47, 52), rgb(76, 81, 88),
@@ -2768,7 +3325,7 @@ do
 	end
 
 	makeHeading(worldPage, "GUI & CAMERA", 8)
-	themeBtn = makeButton(worldPage, "GUI Theme: Obsidian", 9, function()
+	themeBtn = makeButton(worldPage, "GUI Theme: Halloween", 9, function()
 		applyTheme(idx % #THEMES + 1)
 		notify("Theme: " .. THEMES[idx].name)
 	end, {
@@ -2783,6 +3340,8 @@ do
 			end
 		end,
 	})
+
+	applyTheme(1) -- Halloween is the default theme
 
 	-- Unlock Camera: infinite zoom (also lets you zoom all the way into first person)
 	local unlocked = false
@@ -3735,7 +4294,7 @@ refreshMobile = function()
 	setActive(instaBtn, instantPrompts)
 	setActive(jumpBtn, infJumpToggle.get())
 	setActive(speedBtn, wsToggle.get())
-	setActive(tapBtn, clickTpToggle.get())
+	setActive(tapBtn, Cfg.tapToggle.get())
 	setActive(freezeBtn, freezeToggle.get())
 	setActive(lightBtn, fullbrightToggle.get())
 	setActive(afkBtn, afkToggle.get())
@@ -3776,7 +4335,7 @@ speedBtn.MouseButton1Click:Connect(function()
 	end
 	wsToggle.set(not wsToggle.get())
 end)
-tapBtn.MouseButton1Click:Connect(function() clickTpToggle.set(not clickTpToggle.get()) end)
+tapBtn.MouseButton1Click:Connect(function() Cfg.tapToggle.set(not Cfg.tapToggle.get()) end)
 freezeBtn.MouseButton1Click:Connect(function() freezeToggle.set(not freezeToggle.get()) end)
 lightBtn.MouseButton1Click:Connect(function() fullbrightToggle.set(not fullbrightToggle.get()) end)
 afkBtn.MouseButton1Click:Connect(function() afkToggle.set(not afkToggle.get()) end)
@@ -3848,23 +4407,395 @@ refreshMobile()
 end)()
 
 ------------------------------------------------------------
+-- HUD DISPLAYS (MAIN tab): FPS, Ping, Keystrokes, Keybinds + Move GUI
+------------------------------------------------------------
+;(function() -- own function = own 200-local limit
+	local Stats = game:GetService("Stats")
+	local hud = { move = false, snap = 0, els = {}, drag = nil }
+	local GREEN, YELLOW, RED = Color3.fromRGB(60, 255, 120), Color3.fromRGB(255, 220, 60), Color3.fromRGB(255, 70, 70)
+
+	local hudGui = new("ScreenGui", {
+		Name = "NesteaHUD",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		DisplayOrder = 3,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	}, playerGui)
+
+	local function isPress(i)
+		return i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch
+	end
+
+	local function textColor(e, valueColor)
+		local s = e.s
+		if s.rgb then return Color3.fromHSV((os.clock() * 0.3) % 1, 1, 1) end
+		if s.theme then return accentColor end
+		if s.auto and valueColor then return valueColor end
+		return esp[e.key .. "Text"]
+	end
+
+	-- creates one draggable HUD element
+	local function newEl(key, pos, auto, noBg)
+		local e = {
+			key = key, defPos = pos, on = false, noBg = noBg,
+			s = { scale = 100, corner = 8, outline = false, theme = false, rgb = false,
+				bgT = 40, txtT = 0, size = 16, label = true, auto = false, interval = 500 },
+		}
+		esp[key .. "Text"] = WHITE
+		esp[key .. "Bg"] = Color3.new(0, 0, 0)
+		e.frame = new("Frame", {
+			Name = key,
+			Size = UDim2.new(),
+			Position = pos,
+			BackgroundColor3 = Color3.new(0, 0, 0),
+			BackgroundTransparency = 0.4,
+			BorderSizePixel = 0,
+			Visible = false,
+			AutomaticSize = auto and Enum.AutomaticSize.XY or Enum.AutomaticSize.None,
+		}, hudGui)
+		e.corner = corner(e.frame, 8)
+		e.stroke = new("UIStroke", { Thickness = 1.5, Color = WHITE, Transparency = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, e.frame)
+		e.scaleObj = new("UIScale", {}, e.frame)
+		e.frame.InputBegan:Connect(function(input)
+			if hud.move and isPress(input) then
+				hud.drag = { e = e, start = input.Position, pos = e.frame.Position }
+			end
+		end)
+		hud.els[#hud.els + 1] = e
+		return e
+	end
+
+	local function newText(e, font)
+		new("UIPadding", {
+			PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8),
+			PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4),
+		}, e.frame)
+		e.label = new("TextLabel", {
+			Size = UDim2.new(),
+			AutomaticSize = Enum.AutomaticSize.XY,
+			BackgroundTransparency = 1,
+			Font = font or Enum.Font.GothamBold,
+			TextSize = 16,
+			TextColor3 = WHITE,
+			Text = "",
+			TextXAlignment = Enum.TextXAlignment.Left,
+		}, e.frame)
+		return e.label
+	end
+
+	-- dragging (Move GUI)
+	local function snapTo(v)
+		if hud.snap > 1 then return math.floor(v / hud.snap + 0.5) * hud.snap end
+		return v
+	end
+	UserInputService.InputChanged:Connect(function(input)
+		if hud.drag and (input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch) then
+			local d = input.Position - hud.drag.start
+			local p = hud.drag.pos
+			hud.drag.e.frame.Position = UDim2.new(
+				p.X.Scale, snapTo(p.X.Offset + d.X),
+				p.Y.Scale, snapTo(p.Y.Offset + d.Y)
+			)
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if hud.drag and isPress(input) then hud.drag = nil end
+	end)
+
+	------------------------------------------------------------
+	-- Elements
+	------------------------------------------------------------
+	local fps = newEl("hudFps", UDim2.fromOffset(12, 12), true)
+	newText(fps)
+	local png = newEl("hudPing", UDim2.fromOffset(12, 52), true)
+	newText(png)
+	local kb = newEl("hudBinds", UDim2.fromOffset(12, 92), true)
+	newText(kb, Enum.Font.Code)
+	kb.label.RichText = true
+	kb.s.size = 14
+	kb.s.title, kb.s.main, kb.s.state, kb.s.mode = true, true, true, true
+
+	local ks = newEl("hudKeys", UDim2.new(0, 12, 1, -170), false, true)
+	ks.frame.Size = UDim2.fromOffset(128, 154)
+	ks.s.size, ks.s.bgT, ks.s.pressT = 14, 35, 0
+	ks.s.space, ks.s.mouse, ks.s.cps = true, true, true
+	esp.hudKeysDown = Color3.fromRGB(255, 140, 30)
+
+	-- keystroke boxes
+	local function keyBox(label, code, mouse, x, y, w, h)
+		local f = new("Frame", {
+			Position = UDim2.fromOffset(x, y),
+			Size = UDim2.fromOffset(w, h),
+			BackgroundColor3 = Color3.new(0, 0, 0),
+			BorderSizePixel = 0,
+		}, ks.frame)
+		corner(f, 6)
+		local t = new("TextLabel", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Text = label,
+			Font = Enum.Font.GothamBold,
+			TextSize = 14,
+			TextColor3 = WHITE,
+		}, f)
+		return { f = f, t = t, code = code, mouse = mouse, a = 0, label = label }
+	end
+	local keysMain = {
+		keyBox("W", Enum.KeyCode.W, nil, 44, 0, 40, 40),
+		keyBox("A", Enum.KeyCode.A, nil, 0, 44, 40, 40),
+		keyBox("S", Enum.KeyCode.S, nil, 44, 44, 40, 40),
+		keyBox("D", Enum.KeyCode.D, nil, 88, 44, 40, 40),
+	}
+	local spaceKey = keyBox("SPACE", Enum.KeyCode.Space, nil, 0, 88, 128, 28)
+	local lmbKey = keyBox("LMB", nil, Enum.UserInputType.MouseButton1, 0, 120, 62, 34)
+	local rmbKey = keyBox("RMB", nil, Enum.UserInputType.MouseButton2, 66, 120, 62, 34)
+	local allKeys = { keysMain[1], keysMain[2], keysMain[3], keysMain[4], spaceKey, lmbKey, rmbKey }
+
+	-- clicks per second
+	local clicks = { {}, {} }
+	UserInputService.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			table.insert(clicks[1], os.clock())
+		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+			table.insert(clicks[2], os.clock())
+		end
+	end)
+	local function cpsOf(list)
+		local n, now = 0, os.clock()
+		for i = #list, 1, -1 do
+			if now - list[i] <= 1 then n += 1 else table.remove(list, i) end
+		end
+		return n
+	end
+
+	-- ping (same "Data Ping" value Roblox shows in its own stats)
+	local function pingNow()
+		local ok, value = pcall(function()
+			return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+		end)
+		if ok and type(value) == "number" then return math.floor(value + 0.5) end
+		return math.floor(player:GetNetworkPing() * 2000)
+	end
+
+	-- keybinds list text
+	local function fmt(name, key, mode, on)
+		local t = string.format("%-15s %-10s", name:sub(1, 15), key)
+		if kb.s.mode and mode then t ..= mode end
+		if kb.s.state and on ~= nil then
+			t ..= on and ' <font color="#3CFF78">ON</font>' or ' <font color="#FF4646">OFF</font>'
+		end
+		return t
+	end
+	local function refreshBinds()
+		local lines = {}
+		if kb.s.title then lines[1] = "KEYBINDS" end
+		if kb.s.main then
+			lines[#lines + 1] = fmt("Fly", flyKey.Name, Cfg.flyHold and " [hold]" or " [toggle]", flying)
+			lines[#lines + 1] = fmt("Hide Menu", menuKey.Name)
+			lines[#lines + 1] = fmt("Aimbot", aimKey.Name, aim.holdKey and " [hold]" or " [toggle]", aim.enabled)
+			lines[#lines + 1] = fmt("Reset", resetKey.Name)
+		end
+		for _, f in ipairs(SUI.feats) do
+			if f.key then
+				lines[#lines + 1] = fmt(f.name, f.key.Name, f.hold and " [hold]" or " [toggle]", f.obj.get())
+			end
+		end
+		if #lines == (kb.s.title and 1 or 0) then lines[#lines + 1] = "(no keybinds set)" end
+		kb.label.Text = table.concat(lines, "\n")
+	end
+
+	------------------------------------------------------------
+	-- Update loop
+	------------------------------------------------------------
+	local fpsAcc, fpsFrames, pingAcc, bindAcc = 0, 0, 0, 1
+	RunService.RenderStepped:Connect(function(dt)
+		-- FPS / ping values
+		fpsAcc += dt
+		fpsFrames += 1
+		if fpsAcc >= fps.s.interval / 1000 then
+			fps.value = math.floor(fpsFrames / fpsAcc + 0.5)
+			fpsAcc, fpsFrames = 0, 0
+		end
+		pingAcc += dt
+		if pingAcc >= png.s.interval / 1000 or not png.value then
+			pingAcc = 0
+			png.value = pingNow()
+		end
+		local fv, pv = fps.value or 0, png.value or 0
+		fps.label.Text = (fps.s.label and "FPS: " or "") .. fv
+		png.label.Text = (png.s.label and "Ping: " or "") .. pv .. " ms"
+		fps.vcol = fv >= 50 and GREEN or (fv >= 30 and YELLOW or RED)
+		png.vcol = pv <= 80 and GREEN or (pv <= 150 and YELLOW or RED)
+
+		-- keybinds text
+		bindAcc += dt
+		if kb.frame.Visible and bindAcc >= 0.25 then
+			bindAcc = 0
+			refreshBinds()
+		end
+
+		-- look of every element
+		for _, e in ipairs(hud.els) do
+			local s = e.s
+			local vis = e.on or hud.move -- Move GUI shows everything so you can place it
+			e.frame.Visible = vis
+			if vis then
+				e.frame.Active = hud.move
+				e.corner.CornerRadius = UDim.new(0, s.corner)
+				e.scaleObj.Scale = s.scale / 100
+				e.frame.BackgroundColor3 = esp[e.key .. "Bg"]
+				e.frame.BackgroundTransparency = e.noBg and 1 or s.bgT / 100
+				local col = (e == ks) and esp.hudKeysText or textColor(e, e.vcol)
+				e.stroke.Color = hud.move and Color3.fromRGB(255, 200, 40) or col
+				e.stroke.Transparency = (hud.move or s.outline) and 0 or 1
+				if e.label then
+					e.label.TextSize = s.size
+					e.label.TextColor3 = col
+					e.label.TextTransparency = s.txtT / 100
+				end
+			end
+		end
+
+		-- keystrokes
+		if ks.frame.Visible then
+			local s = ks.s
+			local y = 84
+			spaceKey.f.Visible = s.space
+			if s.space then
+				spaceKey.f.Position = UDim2.fromOffset(0, y + 4)
+				y += 32
+			end
+			lmbKey.f.Visible, rmbKey.f.Visible = s.mouse, s.mouse
+			if s.mouse then
+				lmbKey.f.Position = UDim2.fromOffset(0, y + 4)
+				rmbKey.f.Position = UDim2.fromOffset(66, y + 4)
+				y += 38
+			end
+			ks.frame.Size = UDim2.fromOffset(128, y)
+
+			local pcol = esp.hudKeysDown
+			if s.rgb then pcol = Color3.fromHSV((os.clock() * 0.3) % 1, 1, 1)
+			elseif s.theme then pcol = accentColor end
+
+			for _, k in ipairs(allKeys) do
+				if k.f.Visible then
+					local down
+					if k.mouse then
+						down = UserInputService:IsMouseButtonPressed(k.mouse)
+					else
+						down = UserInputService:IsKeyDown(k.code)
+					end
+					k.a += ((down and 1 or 0) - k.a) * math.min(1, dt * 18)
+					k.f.BackgroundColor3 = esp.hudKeysBg:Lerp(pcol, k.a)
+					k.f.BackgroundTransparency = (s.bgT + (s.pressT - s.bgT) * k.a) / 100
+					k.t.TextColor3 = esp.hudKeysText
+					k.t.TextTransparency = s.txtT / 100
+					if k.mouse and s.cps then
+						k.t.TextSize = math.max(8, s.size - 3)
+						k.t.Text = k.label .. "\n" .. cpsOf(clicks[k.mouse == Enum.UserInputType.MouseButton1 and 1 or 2])
+					else
+						k.t.TextSize = s.size
+						k.t.Text = k.label
+					end
+				end
+			end
+		end
+	end)
+
+	------------------------------------------------------------
+	-- Settings (gear buttons)
+	------------------------------------------------------------
+	local function common(p, e, themeLbl, bgLbl)
+		local s = e.s
+		makeSlider(p, "Scale %", 1, 40, 250, s.scale, function(v) s.scale = v end)
+		makeSlider(p, "Text Size", 2, 8, 40, s.size, function(v) s.size = v end)
+		makeSlider(p, "Text Transparency %", 3, 0, 100, s.txtT, function(v) s.txtT = v end)
+		makeSlider(p, bgLbl, 4, 0, 100, s.bgT, function(v) s.bgT = v end)
+		makeSlider(p, "Corner Roundness", 5, 0, 20, s.corner, function(v) s.corner = v end)
+		makeToggle(p, "Outline", 6, s.outline, function(v) s.outline = v end)
+		makeToggle(p, themeLbl, 7, s.theme, function(v) s.theme = v end)
+		makeToggle(p, "RGB Mode", 8, s.rgb, function(v) s.rgb = v end)
+	end
+
+	local function valueSettings(p, e)
+		common(p, e, "Theme Colored Text", "Background Transparency %")
+		makeToggle(p, "Show Label", 9, e.s.label, function(v) e.s.label = v end)
+		makeToggle(p, "Color By Value (green/yellow/red)", 10, e.s.auto, function(v) e.s.auto = v end)
+		makeSlider(p, "Update Interval (ms)", 11, 100, 2000, e.s.interval, function(v) e.s.interval = v end)
+		SUI.colorRows(p, e.key .. "Text", "TEXT COLOR", 20)
+		SUI.colorRows(p, e.key .. "Bg", "BACKGROUND COLOR", 30)
+	end
+
+	makeHeading(mainPage, "HUD DISPLAYS", 12)
+
+	makeToggle(mainPage, "FPS Display", 13, false, function(v) fps.on = v end, {
+		desc = "Shows your FPS on screen. Color, transparency, size and more are here. Use Move GUI to place it.",
+		build = function(p) valueSettings(p, fps) end,
+	})
+	makeToggle(mainPage, "Ping Display", 14, false, function(v) png.on = v end, {
+		desc = "Shows your ping on screen. Color, transparency, size and more are here. Use Move GUI to place it.",
+		build = function(p) valueSettings(p, png) end,
+	})
+	makeToggle(mainPage, "Keystrokes", 15, false, function(v) ks.on = v end, {
+		desc = "Shows W A S D, Space and the mouse buttons (with clicks per second) lighting up as you press them.",
+		build = function(p)
+			common(p, ks, "Theme Colored Pressed Keys", "Key Transparency %")
+			makeSlider(p, "Pressed Transparency %", 9, 0, 100, ks.s.pressT, function(v) ks.s.pressT = v end)
+			makeToggle(p, "Show Space Bar", 10, ks.s.space, function(v) ks.s.space = v end)
+			makeToggle(p, "Show Mouse Buttons", 11, ks.s.mouse, function(v) ks.s.mouse = v end)
+			makeToggle(p, "Show Clicks Per Second", 12, ks.s.cps, function(v) ks.s.cps = v end)
+			SUI.colorRows(p, "hudKeysText", "TEXT COLOR", 20)
+			SUI.colorRows(p, "hudKeysBg", "KEY COLOR", 30)
+			SUI.colorRows(p, "hudKeysDown", "PRESSED KEY COLOR", 40)
+		end,
+	})
+	makeToggle(mainPage, "Keybinds", 16, false, function(v) kb.on = v end, {
+		desc = "Shows the keys you set on features (Fly, Aimbot, Reset, Hide Menu and every feature you gave a key).",
+		build = function(p)
+			common(p, kb, "Theme Colored Text", "Background Transparency %")
+			makeToggle(p, "Show Title", 9, kb.s.title, function(v) kb.s.title = v end)
+			makeToggle(p, "Show Main Keys (Fly, Aim...)", 10, kb.s.main, function(v) kb.s.main = v end)
+			makeToggle(p, "Show ON / OFF State", 11, kb.s.state, function(v) kb.s.state = v end)
+			makeToggle(p, "Show Hold / Toggle Mode", 12, kb.s.mode, function(v) kb.s.mode = v end)
+			SUI.colorRows(p, "hudBindsText", "TEXT COLOR", 20)
+			SUI.colorRows(p, "hudBindsBg", "BACKGROUND COLOR", 30)
+		end,
+	})
+
+	makeToggle(mainPage, "Move GUI", 17, false, function(v)
+		hud.move = v
+		notify(v and "Move GUI: drag the HUD elements" or "Move GUI: OFF")
+	end, {
+		desc = "Turn it on and drag the FPS, Ping, Keystrokes and Keybinds displays anywhere. Every display is shown while it is on, so you can place the ones that are off too.",
+		build = function(p)
+			makeSlider(p, "Snap To Grid (px, 0 = off)", 1, 0, 100, hud.snap, function(v) hud.snap = v end)
+			makeButton(p, "Reset All HUD Positions", 2, function()
+				for _, e in ipairs(hud.els) do e.frame.Position = e.defPos end
+				notify("HUD positions reset")
+			end)
+		end,
+	})
+end)()
+
+------------------------------------------------------------
 -- Boot sequence: loading screen -> PLAY button -> panel reveal
 ------------------------------------------------------------
 task.spawn(function()
 	local steps = {
-		{ 0.16, "Building interface..." },
-		{ 0.34, "Loading fly engine..." },
-		{ 0.52, "Calibrating ESP..." },
-		{ 0.68, "Mounting tools..." },
+		{ 0.16, "Summoning the interface..." },
+		{ 0.34, "Awakening the fly engine..." },
+		{ 0.52, "Hunting for spirits..." },
+		{ 0.68, "Brewing the tools..." },
 	}
 	for _, s in ipairs(steps) do
 		Loader.setProgress(s[1], s[2])
 		task.wait(0.9)
 	end
 
-	Loader.setProgress(0.86, "Finishing up...")
+	Loader.setProgress(0.86, "Carving the pumpkin...")
 	task.wait(0.9)
-	Loader.setProgress(0.94, "Ready")
+	Loader.setProgress(0.94, "Ready... if you dare")
 	task.wait(0.8)
 
 	Loader.finish(function()
