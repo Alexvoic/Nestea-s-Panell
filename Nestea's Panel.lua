@@ -154,7 +154,7 @@ local DEFAULT_POS = IS_TOUCH and UDim2.fromOffset(10, 10) or UDim2.fromOffset(20
 local PANEL_SCALE = IS_TOUCH and math.clamp((camera.ViewportSize.Y - 24) / 430, 0.5, 1) or 1
 
 ------------------------------------------------------------
--- LOADING SCREEN (map camera, black banner + panel, arc gauge, PLAY button)
+-- LOADING SCREEN (map camera, black banner + panel, arc gauge, PLAY button, SKIP button)
 ------------------------------------------------------------
 local Loader = {}
 do
@@ -528,6 +528,40 @@ do
 	local tipIdx, nextTip = 1, t0 + 2.8
 	local conn
 
+	------------------------------------------------------------
+	-- SKIP button (bottom-left): jumps the bar to 100% so PLAY appears right away
+	------------------------------------------------------------
+	local skipped = false
+	local skipE, skipG = elem(UDim2.fromOffset(130, 44), Vector2.new(0, 1), UDim2.new(0, 24, 1, -24), 0.9, Vector2.new(-40, 0))
+	local skipBtn = new("TextButton", {
+		Size = UDim2.new(1, -8, 1, -8),
+		Position = UDim2.fromOffset(4, 4),
+		BackgroundColor3 = BLACK,
+		BorderSizePixel = 0,
+		Text = "",
+		AutoButtonColor = false,
+	}, skipG)
+	corner(skipBtn, 12)
+	new("UIStroke", { Thickness = 2, Color = ORANGE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, skipBtn)
+	outlined({
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Text = "SKIP >>",
+		Font = Enum.Font.Creepster,
+		TextSize = 24,
+		TextColor3 = WHITE,
+	}, skipBtn, 2)
+	skipBtn.MouseEnter:Connect(function() tween(skipBtn, 0.15, { BackgroundColor3 = Color3.fromRGB(70, 25, 90) }) end)
+	skipBtn.MouseLeave:Connect(function() tween(skipBtn, 0.15, { BackgroundColor3 = BLACK }) end)
+	skipBtn.Activated:Connect(function()
+		if skipped then return end
+		skipped = true
+		target = 1
+		shown = 1
+		status.Text = "Skipped!"
+		skipBtn.Visible = false
+	end)
+
 	conn = RunService.RenderStepped:Connect(function(dt)
 		local now = os.clock()
 		local t = now - t0
@@ -596,11 +630,18 @@ do
 	end
 
 	function Loader.setProgress(p, text)
+		if skipped then return end
 		target = math.max(target, math.clamp(p, 0, 1))
 		if text and text ~= status.Text then
 			status.Text = text
 			log(text)
 		end
+	end
+
+	-- like task.wait, but returns early when SKIP is pressed
+	function Loader.wait(t)
+		local e = os.clock() + t
+		while not skipped and os.clock() < e do task.wait() end
 	end
 
 	-- waits for the PLAY button, then onReveal runs as everything fades out
@@ -612,6 +653,7 @@ do
 		status.Text = "Press PLAY... if you dare"
 		ready = true
 		playBtn.Visible = true
+		skipBtn.Visible = false
 		playE.startAt = 0 -- the PLAY button fades in now
 		while not clicked do task.wait() end
 		playBtn.Active = false
@@ -3580,8 +3622,8 @@ end)
 -- Silent aim: picks a target inside its own FOV without moving your camera.
 -- It hands the target to YOUR game's weapon scripts through NesteaSilentAim
 -- (a BindableFunction under the player, also available as _G.NesteaSilentAim).
--- With "Redirect Clicks To Target" on, each click also flicks the camera for a few frames so
--- weapons that fire from the cursor / mouse.Hit hit the target (see the redirect block below).
+-- "Redirect Clicks To Target" is OFF by default so the camera never moves:
+-- your own weapon script reads the target instead (see WeaponClient.lua).
 local silent = { enabled = false, fov = 100, showFov = true, debug = false, target = nil,
 	hitChance = 100, thick = 2, beamTime = 15, redirect = false }
 do
@@ -3613,7 +3655,7 @@ do
 		if not v then silent.target = nil end
 		notify("Silent Aim: " .. (v and "ON" or "OFF"))
 	end, {
-		desc = "Picks a target without permanently moving your camera. Clicks are redirected to the target, and your game's weapon scripts can also read it through NesteaSilentAim. FOV circle and test mode are here.",
+		desc = "Picks a target without moving your camera. Your game's weapon scripts read it through NesteaSilentAim. FOV circle and test mode are here.",
 		build = function(p)
 			makeSlider(p, "Hit Chance %", 1, 1, 100, silent.hitChance, function(v) silent.hitChance = v end)
 			local fv = makeSlider(p, "Silent FOV (radius)", 2, 20, 600, silent.fov, function(v)
@@ -3737,9 +3779,9 @@ RunService:BindToRenderStep("NesteaAim", Enum.RenderPriority.Camera.Value + 1, f
 end)
 
 ------------------------------------------------------------
--- SILENT AIM click redirect: when you click / fire, the camera is pointed so that the
--- spot under your cursor is the silent target for a few frames, then your normal
--- camera script takes it back. Weapon scripts that read mouse.Hit / camera rays hit the target.
+-- SILENT AIM click redirect (OFF by default, see "Redirect Clicks To Target").
+-- When on, a click briefly points the camera so mouse.Hit / camera rays land on the target.
+-- Leave it off if your weapon script reads NesteaSilentAim, then the camera never moves.
 ------------------------------------------------------------
 do -- scoped, so it adds no locals to the main chunk (200-local limit)
 	local flick = { frames = 0, target = nil }
@@ -4780,6 +4822,7 @@ end)()
 
 ------------------------------------------------------------
 -- Boot sequence: loading screen -> PLAY button -> panel reveal
+-- (Loader.wait returns early when you press SKIP)
 ------------------------------------------------------------
 task.spawn(function()
 	local steps = {
@@ -4790,13 +4833,13 @@ task.spawn(function()
 	}
 	for _, s in ipairs(steps) do
 		Loader.setProgress(s[1], s[2])
-		task.wait(0.9)
+		Loader.wait(0.9)
 	end
 
 	Loader.setProgress(0.86, "Carving the pumpkin...")
-	task.wait(0.9)
+	Loader.wait(0.9)
 	Loader.setProgress(0.94, "Ready... if you dare")
-	task.wait(0.8)
+	Loader.wait(0.8)
 
 	Loader.finish(function()
 		gui.Enabled = true
