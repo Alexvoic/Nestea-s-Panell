@@ -3583,7 +3583,7 @@ end)
 -- With "Redirect Clicks To Target" on, each click also flicks the camera for a few frames so
 -- weapons that fire from the cursor / mouse.Hit hit the target (see the redirect block below).
 local silent = { enabled = false, fov = 100, showFov = true, debug = false, target = nil,
-	hitChance = 100, thick = 2, beamTime = 15, redirect = true }
+	hitChance = 100, thick = 2, beamTime = 15, redirect = false }
 do
 	silent.circle = new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
